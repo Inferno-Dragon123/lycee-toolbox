@@ -37,8 +37,9 @@ export default async function handler(req, res) {
 
     try {
         // 加载中文字体
-        const fontPath = path.join(__dirname, '../../fonts/NotoSansSC.ttf');
+        const fontPath = path.join(process.cwd(), 'public/fonts/NotoSansSC.ttf');
         if (!fs.existsSync(fontPath)) {
+            console.error('[PDF Generator] 字体文件不存在:', fontPath);
             throw new Error('中文字体文件不存在');
         }
 
