@@ -992,8 +992,8 @@
                         };
                     });
 
-                    // 调用后端 API 生成 PDF (始终使用 localhost:3000)
-                    const pdfApiUrl = 'http://localhost:3000/api/generate-pdf';
+                    // 调用后端 API 生成 PDF
+                    const pdfApiUrl = '/api/generate-pdf';
 
                     const pdfResp = await fetch(pdfApiUrl, {
                         method: 'POST',
@@ -1030,8 +1030,8 @@
             async function loadLoDeck(loId) {
                 setStatus(`⏳ 解析 LO 卡组 ${loId}...`);
                 try {
-                    // 1. 获取 TTS JSON (通过后端代理绕过 CORS，始终使用 localhost:3000)
-                    const proxyUrl = `http://localhost:3000/api/lo-proxy?did=${loId}`;
+                    // 1. 获取 TTS JSON (通过后端代理绕过 CORS)
+                    const proxyUrl = `/api/lo-proxy?did=${loId}`;
                     const ttsResp = await fetch(proxyUrl);
                     if (!ttsResp.ok) throw new Error(`HTTP ${ttsResp.status}`);
                     const tts = await ttsResp.json();
