@@ -560,7 +560,7 @@
                     html += `
                         <div class="search-card" data-cid="${cid}">
                             <div class="card-left">
-                                ${img ? `<img src="${img}" loading="lazy" onerror="this.style.display='none'" alt="${name}">` : '<div style="width:100%; aspect-ratio:5/7; background:#f0f4fa; border-radius:8px;"></div>'}
+                                ${img ? `<img src="/api/image-proxy?url=${encodeURIComponent(img)}" loading="lazy" onerror="this.style.display='none'" alt="${name}">` : '<div style="width:100%; aspect-ratio:5/7; background:#f0f4fa; border-radius:8px;"></div>'}
                                 <div class="deck-actions">
                                     <button class="btn btn-outline btn-sm deck-add-btn" data-cid="${cid}">+</button>
                                     <span>${inDeck}</span>
