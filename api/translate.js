@@ -1,57 +1,28 @@
 // api/translate.js
-import fs from 'fs';
-import path from 'path';
 import crypto from 'crypto';
+import { Redis } from '@upstash/redis';
 
 // ============================================================
-// 翻译库（read-through 缓存）
-// - 库文件：项目根 data/translations.json（vercel dev 本地可读写）
-// - 生产提醒：Vercel serverless 文件系统只读，写入不持久；上线共享库需换 KV，接口不变。
+// 翻译库（使用 Upstash Redis 持久化缓存）
 // - key：卡牌 code（稳定）；缺 code 的卡兜底用 'h:'+sha1(原文)
 // - 值：{ zh 译文, src 原文, ts 时间戳 }；命中但 src 变化（牌库 errata）则重译覆盖
 // ============================================================
-const DB_DIR = path.join(process.cwd(), 'data');
-const DB_FILE = path.join(DB_DIR, 'translations.json');
 
-let cache = null;                    // Map<key, {zh, src, ts}>
-let writeChain = Promise.resolve();  // 串行化落盘，避免并发读改写互相覆盖
-
-function loadCache() {
-    if (cache) return cache;
-    cache = new Map();
-    try {
-        if (fs.existsSync(DB_FILE)) {
-            const obj = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-            for (const [k, v] of Object.entries(obj)) cache.set(k, v);
-            console.log(`[翻译库] 已载入 ${cache.size} 条`);
-        }
-    } catch (e) {
-        console.error('[翻译库] 载入失败，改用空库：', e.message);
+// 初始化 Redis 客户端
+let redis = null;
+function getRedis() {
+    if (!redis) {
+        redis = new Redis({
+            url: process.env.UPSTASH_REDIS_REST_URL,
+            token: process.env.UPSTASH_REDIS_REST_TOKEN,
+        });
     }
-    return cache;
-}
-
-function persistCache() {
-    writeChain = writeChain.then(() => new Promise((resolve) => {
-        try {
-            if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
-            const obj = {};
-            for (const [k, v] of cache.entries()) obj[k] = v;
-            fs.writeFile(DB_FILE, JSON.stringify(obj, null, 2), 'utf8', (err) => {
-                if (err) console.error('[翻译库] 写入失败：', err.message);
-                resolve();
-            });
-        } catch (e) {
-            console.error('[翻译库] 写入失败：', e.message);
-            resolve();
-        }
-    }));
-    return writeChain;
+    return redis;
 }
 
 function cacheKey(code, text) {
-    if (code) return String(code);
-    return 'h:' + crypto.createHash('sha1').update(text || '').digest('hex');
+    if (code) return `trans:${String(code)}`;
+    return 'trans:h:' + crypto.createHash('sha1').update(text || '').digest('hex');
 }
 
 // DeepSeek 翻译 system prompt（术语表原样保留）
@@ -174,23 +145,29 @@ export default async function handler(req, res) {
     }
 
     // 4. 查库：命中直接用，未命中收集待翻译
-    const db = loadCache();
+    const redis = getRedis();
     const translations = {};   // id -> 译文
     const toTranslate = [];    // { id, key, text }
+
     for (const it of items) {
         const text = it.text || '';
         if (!text) { translations[it.id] = ''; continue; }
         const key = cacheKey(it.code, text);
-        const hit = db.get(key);
-        if (hit && hit.src === text) {
-            translations[it.id] = hit.zh;              // 命中库 → 0 token
-        } else {
-            toTranslate.push({ id: it.id, key, text }); // 未命中/原文已变 → 待翻译
+
+        try {
+            const hit = await redis.get(key);
+            if (hit && hit.src === text) {
+                translations[it.id] = hit.zh;              // 命中库 → 0 token
+            } else {
+                toTranslate.push({ id: it.id, key, text }); // 未命中/原文已变 → 待翻译
+            }
+        } catch (e) {
+            console.error(`[翻译] Redis 查询失败: ${key}`, e.message);
+            toTranslate.push({ id: it.id, key, text }); // Redis 错误，直接翻译
         }
     }
 
     // 5. 只翻未命中项（小并发）；单卡失败降级原文且不入库，不影响其他卡
-    let dbChanged = false;
     const CONCURRENCY = 4;
     for (let i = 0; i < toTranslate.length; i += CONCURRENCY) {
         const batch = toTranslate.slice(i, i + CONCURRENCY);
@@ -203,16 +180,19 @@ export default async function handler(req, res) {
                 return { ...t, zh: t.text, ok: false };
             }
         }));
+
         for (const r of results) {
             translations[r.id] = r.zh;
             if (r.ok) {
-                db.set(r.key, { zh: r.zh, src: r.text, ts: Date.now() });
-                dbChanged = true;
+                try {
+                    // 写入 Redis，设置30天过期
+                    await redis.set(r.key, { zh: r.zh, src: r.text, ts: Date.now() }, { ex: 2592000 });
+                } catch (e) {
+                    console.error(`[翻译] Redis 写入失败: ${r.key}`, e.message);
+                }
             }
         }
     }
-
-    if (dbChanged) persistCache(); // 异步落盘，不阻塞响应
 
     // 6. 响应：批量返回 translations；单条模式兼容旧返回 { translatedText }
     if (singleMode) {
