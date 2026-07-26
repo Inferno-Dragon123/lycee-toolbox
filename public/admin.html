@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - Lycee Toolbox</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 16px;
+            font-size: 1.5rem;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+        .stat-label {
+            font-weight: 600;
+            color: #555;
+        }
+        .stat-value {
+            color: #333;
+            font-family: 'Courier New', monospace;
+        }
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #5568d3;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .loading {
+            text-align: center;
+            color: white;
+            font-size: 1.2rem;
+        }
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c00;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛠️ 管理后台</h1>
+
+        <div id="error" class="error" style="display:none;"></div>
+        <div id="loading" class="loading">加载中...</div>
+        <div id="content" style="display:none;">
+            <div class="grid">
+                <div class="card">
+                    <h2>📝 翻译缓存</h2>
+                    <div class="stat-row">
+                        <span class="stat-label">缓存状态:</span>
+                        <span class="stat-value" id="trans-exists">-</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">缓存条目:</span>
+                        <span class="stat-value" id="trans-count">-</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">文件大小:</span>
+                        <span class="stat-value" id="trans-size">-</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">最后更新:</span>
+                        <span class="stat-value" id="trans-modified">-</span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>💾 系统信息</h2>
+                    <div class="stat-row">
+                        <span class="stat-label">Node 版本:</span>
+                        <span class="stat-value" id="sys-node">-</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">运行时间:</span>
+                        <span class="stat-value" id="sys-uptime">-</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">内存使用:</span>
+                        <span class="stat-value" id="sys-memory">-</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">更新时间:</span>
+                        <span class="stat-value" id="sys-timestamp">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="text-align:center; margin-top:20px;">
+                <button class="btn" onclick="loadStats()">🔄 刷新数据</button>
+                <button class="btn" onclick="window.open('/', '_blank')" style="background:#764ba2; margin-left:10px;">🏠 返回主页</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadStats() {
+            const loading = document.getElementById('loading');
+            const content = document.getElementById('content');
+            const error = document.getElementById('error');
+
+            loading.style.display = 'block';
+            content.style.display = 'none';
+            error.style.display = 'none';
+
+            try {
+                const resp = await fetch('/api/admin-stats');
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+
+                // 翻译缓存
+                document.getElementById('trans-exists').textContent = data.translation.exists ? '✅ 存在' : '❌ 不存在';
+                document.getElementById('trans-count').textContent = data.translation.count + ' 条';
+                document.getElementById('trans-size').textContent = data.translation.sizeFormatted || '0 KB';
+                document.getElementById('trans-modified').textContent = data.translation.lastModified
+                    ? new Date(data.translation.lastModified).toLocaleString('zh-CN')
+                    : '-';
+
+                // 系统信息
+                document.getElementById('sys-node').textContent = data.system.nodeVersion;
+                document.getElementById('sys-uptime').textContent = data.system.uptimeFormatted;
+                document.getElementById('sys-memory').textContent = data.system.memory.usedFormatted + ' / ' + data.system.memory.totalFormatted;
+                document.getElementById('sys-timestamp').textContent = new Date(data.system.timestamp).toLocaleString('zh-CN');
+
+                loading.style.display = 'none';
+                content.style.display = 'block';
+            } catch (e) {
+                loading.style.display = 'none';
+                error.style.display = 'block';
+                error.textContent = '加载失败: ' + e.message;
+            }
+        }
+
+        // 页面加载时自动获取数据
+        loadStats();
+
+        // 每30秒自动刷新
+        setInterval(loadStats, 30000);
+    </script>
+</body>
+</html>
