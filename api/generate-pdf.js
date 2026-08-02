@@ -69,11 +69,11 @@ export default async function handler(req, res) {
         doc.moveDown(1);
 
         const leftMargin = 10;
-        const cardImgWidth = 120;   // 40mm = 113.4pt, 取 120pt
-        const cardImgHeight = 168;  // 56mm = 158.7pt, 取 168pt
-        const rowHeight = 195;      // 65mm = 184.3pt, 取 195pt
+        const cardImgWidth = 120;
+        const cardImgHeight = 168;
+        const minRowHeight = 195;
         const textLeftMargin = leftMargin + cardImgWidth + 24;
-        const pageHeight = 842;     // A4 高度 pt
+        const pageHeight = 842;
         const topMargin = 70;
 
         let yPos = topMargin;
@@ -81,8 +81,19 @@ export default async function handler(req, res) {
         for (let i = 0; i < cards.length; i++) {
             const card = cards[i];
 
-            // 检查是否需要新页
-            if (yPos + rowHeight > pageHeight - 25) {
+            // 预先计算效果文本的实际高度
+            const effect = card.effectTranslated || card.effect || '无效果';
+            const effectText = `效果:\n${effect.replace(/\|/g, '\n')}`;
+
+            doc.font('NotoSansSC').fontSize(11);
+            const textHeight = doc.heightOfString(effectText, {
+                width: 440,
+                lineGap: 4
+            });
+
+            const actualRowHeight = Math.max(minRowHeight, 52 + textHeight + 20);
+
+            if (yPos + actualRowHeight > pageHeight - 25) {
                 doc.addPage();
                 yPos = topMargin;
             }
@@ -155,22 +166,21 @@ export default async function handler(req, res) {
                 ellipsis: true
             });
 
-            // 效果（自动换行，支持较长文本）
+            // 效果（自动换行，支持较长文本，不限制高度）
             doc.fontSize(11);
             const effect = card.effectTranslated || card.effect || '无效果';
             const effectText = `效果:\n${effect.replace(/\|/g, '\n')}`;
             doc.text(effectText, textLeftMargin, yPos + 52, {
                 width: 440,
-                height: 130,
                 lineGap: 4
             });
 
-            // 分隔线
-            doc.moveTo(leftMargin, yPos + rowHeight - 8)
-               .lineTo(585, yPos + rowHeight - 8)
+            // 分隔线（使用动态计算的行高）
+            doc.moveTo(leftMargin, yPos + actualRowHeight - 8)
+               .lineTo(585, yPos + actualRowHeight - 8)
                .stroke();
 
-            yPos += rowHeight;
+            yPos += actualRowHeight;
         }
 
         // 结束文档

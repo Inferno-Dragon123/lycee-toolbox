@@ -144,13 +144,34 @@ export default async function handler(req, res) {
         return res.status(200).json({ translations: {} });
     }
 
-    // 4. 查库：命中直接用，未命中收集待翻译
+    // 4. 查库：先尝试从日文数据库获取原文，再查翻译缓存
     const redis = getRedis();
     const translations = {};   // id -> 译文
     const toTranslate = [];    // { id, key, text }
 
     for (const it of items) {
-        const text = it.text || '';
+        let text = it.text || '';
+        let usedJapanese = false;
+
+        // 如果有 code，优先从日文数据库获取原文
+        if (it.code) {
+            try {
+                const japaneseKey = `lycee:japanese:${it.code}`;
+                const japaneseData = await redis.get(japaneseKey);
+                if (japaneseData) {
+                    const parsed = typeof japaneseData === 'string' ? JSON.parse(japaneseData) : japaneseData;
+                    if (parsed.japaneseText) {
+                        text = parsed.japaneseText;
+                        usedJapanese = true;
+                        console.log(`[翻译] 使用日文原文: ${it.code}`);
+                    }
+                }
+            } catch (e) {
+                console.error(`[翻译] 读取日文原文失败: ${it.code}`, e.message);
+                // 失败则使用传入的文本
+            }
+        }
+
         if (!text) { translations[it.id] = ''; continue; }
         const key = cacheKey(it.code, text);
 
