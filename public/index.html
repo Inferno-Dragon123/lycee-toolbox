@@ -370,14 +370,14 @@
                 return null;
             }
 
-         // ---------- 翻译函数 (调用 /api/translate) ----------
+         // ---------- 翻译函数 (调用 /api/translate-from-json) ----------
          // 根据环境自动切换
             // 本文件是浏览器直接打开的普通 HTML，未经 Vite 构建，不能用 import.meta.env
-            // （在非 module 脚本里会抛 SyntaxError，导致整段 <script> 不执行 → 页面卡在“加载中”）。
+            // （在非 module 脚本里会抛 SyntaxError，导致整段 <script> 不执行 → 页面卡在”加载中”）。
             // 改用 location.hostname 判断开发/生产环境。
             const API_URL = ['localhost', '127.0.0.1', ''].includes(location.hostname)
-                ? 'http://localhost:3000/api/translate'      // 开发环境
-                : '/api/translate';                           // 生产环境（同域名）
+                ? 'http://localhost:3000/api/translate-from-json'      // 开发环境
+                : '/api/translate-from-json';                           // 生产环境（同域名）
 
             async function translateEffect(text) {
                 if (!text) return '';
