@@ -168,8 +168,6 @@ export default async function handler(req, res) {
 
             // 效果（自动换行，支持较长文本，不限制高度）
             doc.fontSize(11);
-            const effect = card.effectTranslated || card.effect || '无效果';
-            const effectText = `效果:\n${effect.replace(/\|/g, '\n')}`;
             doc.text(effectText, textLeftMargin, yPos + 52, {
                 width: 440,
                 lineGap: 4
