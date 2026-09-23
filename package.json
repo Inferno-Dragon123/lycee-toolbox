@@ -12,8 +12,10 @@
   "type": "module",
   "dependencies": {
     "@upstash/redis": "^1.38.0",
+    "@vercel/kv": "^2.0.0",
     "axios": "^1.18.1",
     "docx": "^9.6.1",
+    "dotenv": "^17.4.2",
     "jspdf": "^4.2.1",
     "pdfkit": "^0.19.1",
     "puppeteer": "^25.3.0"

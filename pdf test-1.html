@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>萌卡社卡组 → PDF 卡表生成器</title>
+    <!-- 引入 html2pdf 库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+            background: #f4f7fc;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem 1rem;
+        }
+        .container {
+            max-width: 1000px;
+            width: 100%;
+            background: white;
+            border-radius: 28px;
+            box-shadow: 0 20px 40px -12px rgba(0,0,0,0.2);
+            padding: 2rem 2rem 2.5rem;
+        }
+        h1 {
+            font-weight: 600;
+            font-size: 1.9rem;
+            color: #0b1e33;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.2rem;
+            border-bottom: 2px solid #e9edf4;
+            padding-bottom: 0.75rem;
+        }
+        h1 small {
+            font-size: 0.9rem;
+            font-weight: 400;
+            color: #4a6a85;
+            margin-left: 0.5rem;
+        }
+        .input-section {
+            background: #f8faff;
+            border-radius: 18px;
+            padding: 1.5rem 1.8rem;
+            margin: 1.5rem 0 1.8rem;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 1rem 1.2rem;
+            border: 1px solid #dde5ef;
+        }
+        .input-group {
+            flex: 3 1 300px;
+        }
+        .input-group label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #2c3e50;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 0.7rem 1rem;
+            border: 1px solid #cbd6e6;
+            border-radius: 60px;
+            font-size: 0.95rem;
+            background: white;
+            transition: 0.2s;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: #2a7de1;
+            box-shadow: 0 0 0 3px rgba(42,125,225,0.15);
+        }
+        .action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.7rem;
+            flex: 1 0 auto;
+            align-items: center;
+        }
+        .btn {
+            border: none;
+            background: #eef3fa;
+            padding: 0.7rem 1.8rem;
+            border-radius: 60px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #1a2b3c;
+            cursor: pointer;
+            transition: 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+            border: 1px solid transparent;
+        }
+        .btn-primary {
+            background: #1a2b3c;
+            color: white;
+            box-shadow: 0 4px 8px -2px rgba(0,20,40,0.15);
+        }
+        .btn-primary:hover {
+            background: #0f1e2e;
+            transform: scale(0.97);
+        }
+        .btn-success {
+            background: #0d7c3f;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #0a662f;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            pointer-events: none;
+            filter: grayscale(0.3);
+        }
+        .status-area {
+            margin: 1rem 0 1.5rem;
+            font-size: 0.95rem;
+            color: #1e3b5a;
+            background: #eaf1fb;
+            padding: 0.6rem 1.5rem;
+            border-radius: 40px;
+            display: inline-block;
+        }
+        #cardDisplay {
+            margin-top: 1.8rem;
+        }
+        #cardTableWrap {
+            background: white;
+            border-radius: 20px;
+            padding: 0.2rem 0.2rem 0.2rem 0.2rem;
+            overflow-x: auto;
+        }
+        #cardTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        #cardTable th {
+            background: #eef3fa;
+            color: #1a2b3c;
+            font-weight: 600;
+            padding: 0.9rem 0.8rem;
+            text-align: left;
+            border-bottom: 2px solid #d0dbe9;
+        }
+        #cardTable td {
+            padding: 0.8rem 0.8rem;
+            border-bottom: 1px solid #e3eaf3;
+            vertical-align: middle;
+        }
+        #cardTable tr:last-child td {
+            border-bottom: none;
+        }
+        .card-preview-img {
+            width: 70px;
+            height: auto;
+            border-radius: 8px;
+            background: #f0f4fa;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+            display: block;
+        }
+        .card-name {
+            font-weight: 600;
+            color: #0a1a2a;
+        }
+        .card-code {
+            color: #3a5a7a;
+            font-size: 0.8rem;
+        }
+        .card-effect {
+            max-width: 360px;
+            font-size: 0.8rem;
+            color: #1f3b57;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+        .badge-count {
+            background: #dce5f0;
+            border-radius: 40px;
+            padding: 0.15rem 0.8rem;
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: #1d3557;
+            display: inline-block;
+        }
+        .empty-state {
+            padding: 2.5rem 1rem;
+            text-align: center;
+            color: #5b738f;
+        }
+        .footer-note {
+            margin-top: 2rem;
+            font-size: 0.8rem;
+            color: #6c85a0;
+            text-align: center;
+            border-top: 1px solid #e3eaf3;
+            padding-top: 1.5rem;
+        }
+        .spinner {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 3px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            border-top-color: #1a2b3c;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .helper-text {
+            font-size: 0.75rem;
+            color: #5b738f;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>
+        📋 卡表生成器
+        <small>萌卡社 · Lycee / WS</small>
+    </h1>
+
+    <div class="input-section">
+        <div class="input-group">
+            <label for="deckIdInput">🔗 输入卡组分享 ID 或完整链接</label>
+            <input type="text" id="deckIdInput" placeholder="例如: 80f7d395809566c88cff081c5c3cc6a8 或 https://...?id=80f7d...">
+        </div>
+        <div class="action-buttons">
+            <button class="btn btn-primary" id="fetchBtn">📥 加载卡组</button>
+            <button class="btn btn-success" id="pdfBtn" disabled>⬇ 导出 PDF</button>
+        </div>
+    </div>
+
+    <div id="statusMessage" class="status-area">💡 输入卡组ID或链接，点击「加载卡组」</div>
+
+    <div id="cardDisplay">
+        <div id="cardTableWrap">
+            <table id="cardTable">
+                <thead>
+                    <tr>
+                        <th style="width:80px;">卡图</th>
+                        <th style="min-width:140px;">名称 / 编号</th>
+                        <th style="min-width:200px;">效果翻译</th>
+                        <th style="width:70px;text-align:center;">数量</th>
+                    </tr>
+                </thead>
+                <tbody id="cardTableBody">
+                    <tr><td colspan="4" class="empty-state">← 请先加载卡组数据</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="footer-note">
+        ⚡ 数据来自萌卡社公开API · 仅供个人参考 · 禁止商用
+    </div>
+</div>
+
+<script>
+    (function() {
+        // ---------- DOM 引用 ----------
+        const deckIdInput = document.getElementById('deckIdInput');
+        const fetchBtn = document.getElementById('fetchBtn');
+        const pdfBtn = document.getElementById('pdfBtn');
+        const statusMsg = document.getElementById('statusMessage');
+        const tbody = document.getElementById('cardTableBody');
+
+        // ---------- 核心配置 ----------
+        const API_SHOW_DECK = 'https://www.moetcg.club/Api/showDeck';
+
+        // 存储当前卡组数据
+        let currentCards = [];          // 卡片详细信息数组
+        let deckQuantities = {};        // { cid: num }
+        let currentDeckId = '';
+
+        // ---------- 辅助函数 ----------
+        function setStatus(msg, isError = false) {
+            statusMsg.textContent = msg;
+            statusMsg.style.color = isError ? '#b22234' : '#1e3b5a';
+            statusMsg.style.background = isError ? '#ffe6e6' : '#eaf1fb';
+        }
+
+        // 从输入中提取纯ID (支持直接输入ID或完整链接)
+        function extractDeckId(input) {
+            let raw = input.trim();
+            if (!raw) return null;
+            // 如果是完整链接，尝试从中提取 id 参数
+            if (raw.includes('?id=')) {
+                try {
+                    const url = new URL(raw);
+                    return url.searchParams.get('id');
+                } catch (e) {
+                    // 如果URL解析失败，尝试用正则匹配
+                    const match = raw.match(/[?&]id=([^&]+)/);
+                    if (match) return match[1];
+                }
+            }
+            // 否则直接返回输入内容 (假设是纯ID)
+            return raw;
+        }
+
+        // ---------- 核心: 通过 /Api/showDeck 加载卡组 ----------
+        async function loadDeck(deckId) {
+            if (!deckId) {
+                setStatus('⚠️ 请输入有效的卡组ID或链接', true);
+                return false;
+            }
+
+            setStatus(`⏳ 正在加载卡组 [${deckId}] ...`);
+            fetchBtn.disabled = true;
+            pdfBtn.disabled = true;
+
+            try {
+                const url = `${API_SHOW_DECK}?id=${encodeURIComponent(deckId)}`;
+                const response = await fetch(url, {
+                    headers: {
+                        'Referer': 'https://www.moetcg.club/Card-Search/?kid=9',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API请求失败 (HTTP ${response.status})`);
+                }
+
+                const data = await response.json();
+
+                // 检查返回状态
+                if (data.code !== 1 || !data.data || !Array.isArray(data.data)) {
+                    throw new Error(data.msg || '卡组数据格式异常');
+                }
+
+                // 数据解析成功
+                const cards = data.data;
+                if (cards.length === 0) {
+                    setStatus('⚠️ 该卡组为空或不存在', true);
+                    fetchBtn.disabled = false;
+                    return false;
+                }
+
+                // 存储数据
+                currentCards = cards;
+                deckQuantities = {};
+                cards.forEach(card => {
+                    if (card.cid) {
+                        deckQuantities[card.cid] = card.num || 1;
+                    }
+                });
+                currentDeckId = deckId;
+
+                // 渲染表格
+                renderTable(cards);
+                const totalCards = Object.values(deckQuantities).reduce((a, b) => a + b, 0);
+                setStatus(`✅ 加载成功！共 ${cards.length} 种卡片，总计 ${totalCards} 张`);
+                pdfBtn.disabled = false;
+                fetchBtn.disabled = false;
+                return true;
+
+            } catch (error) {
+                console.error('加载卡组失败:', error);
+                setStatus(`❌ 加载失败: ${error.message}`, true);
+                fetchBtn.disabled = false;
+                pdfBtn.disabled = true;
+                return false;
+            }
+        }
+
+        // ---------- 渲染表格 ----------
+        function renderTable(cards) {
+            if (!cards || cards.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="empty-state">暂无卡片数据</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            cards.forEach(card => {
+                const cid = card.cid || '';
+                const count = card.num || 1;
+                const image = card.img || '';
+                const name = card.name || '未命名';
+                const code = card.code || '';
+                // 效果文本可能包含 | 分隔符，替换为换行以便阅读
+                const effect = (card.effect || '').replace(/\|/g, '<br>');
+
+                html += `<tr>
+                    <td>
+                        ${image ? `<img src="${image}" alt="${name}" class="card-preview-img" loading="lazy" onerror="this.style.display='none'">` : '—'}
+                    </td>
+                    <td>
+                        <div class="card-name">${escapeHtml(name)}</div>
+                        <div class="card-code">${escapeHtml(code)}</div>
+                    </td>
+                    <td class="card-effect">${escapeHtml(effect).replace(/\n/g, '<br>')}</td>
+                    <td style="text-align:center;"><span class="badge-count">${count}</span></td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return String(text).replace(/[&<>"]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                if (m === '"') return '&quot;';
+                return m;
+            });
+        }
+
+        // ---------- 导出 PDF ----------
+        function exportPDF() {
+            if (currentCards.length === 0) {
+                setStatus('⚠️ 没有卡片数据，请先加载卡组', true);
+                return;
+            }
+
+            setStatus('⏳ 正在生成 PDF ...');
+            pdfBtn.disabled = true;
+
+            const element = document.getElementById('cardTableWrap');
+            const opt = {
+                margin: [10, 8, 10, 8],
+                filename: `萌卡社卡表_${currentDeckId || 'deck'}.pdf`,
+                image: { type: 'jpeg', quality: 0.95 },
+                html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+            };
+
+            html2pdf().set(opt).from(element).save()
+                .then(() => {
+                    setStatus(`✅ PDF 导出成功！ (${currentCards.length} 种卡片)`);
+                    pdfBtn.disabled = false;
+                })
+                .catch(err => {
+                    console.error('PDF生成失败:', err);
+                    setStatus(`❌ PDF生成失败: ${err.message || '未知错误'}`, true);
+                    pdfBtn.disabled = false;
+                });
+        }
+
+        // ---------- 从URL参数自动加载 ----------
+        function autoLoadFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            let id = params.get('id');
+            if (id) {
+                deckIdInput.value = id;
+                // 自动加载
+                setTimeout(() => {
+                    loadDeck(id);
+                }, 300);
+                setStatus(`💡 从链接自动提取卡组ID: ${id}，正在加载...`);
+            } else {
+                // 检查输入框是否有值 (用户可能手动粘贴)
+                const inputVal = deckIdInput.value.trim();
+                if (inputVal) {
+                    const extracted = extractDeckId(inputVal);
+                    if (extracted) {
+                        loadDeck(extracted);
+                    }
+                }
+            }
+        }
+
+        // ---------- 事件绑定 ----------
+        fetchBtn.addEventListener('click', function() {
+            const rawInput = deckIdInput.value.trim();
+            if (!rawInput) {
+                setStatus('⚠️ 请输入卡组ID或链接', true);
+                return;
+            }
+            const deckId = extractDeckId(rawInput);
+            if (!deckId) {
+                setStatus('⚠️ 未能从输入中解析出卡组ID', true);
+                return;
+            }
+            // 更新URL参数
+            const url = new URL(window.location);
+            url.searchParams.set('id', deckId);
+            window.history.replaceState({}, '', url);
+            loadDeck(deckId);
+        });
+
+        pdfBtn.addEventListener('click', exportPDF);
+
+        deckIdInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                fetchBtn.click();
+            }
+        });
+
+        // ---------- 初始化 ----------
+        autoLoadFromURL();
+
+        console.log('萌卡社卡表生成器 v2 (使用 /Api/showDeck)');
+        console.log('直接输入卡组ID或完整链接即可加载');
+    })();
+</script>
+</body>
+</html>
