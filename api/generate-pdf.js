@@ -1,191 +1,36 @@
-// api/generate-pdf.js - 后端生成带卡图的 PDF (使用 pdfkit 支持中文)
-import axios from 'axios';
-import PDFDocument from 'pdfkit';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { validateDeck } from '../public/deck-format.js';
+import { hydrate } from '../lib/catalog.js';
+import { method, body, fail } from '../lib/http.js';
+import { downloadImages, renderPdf } from '../lib/pdf.js';
 
 export default async function handler(req, res) {
-    // CORS
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    if (req.method === 'OPTIONS') {
-        return res.status(204).end();
-    }
-
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
-    }
-
-    let cards;
+    if (!method(req, res, ['POST'])) return;
     try {
-        cards = req.body?.cards;
-        if (!cards || !Array.isArray(cards)) {
-            console.error('[PDF Generator] 错误: 无效的请求体', req.body);
-            return res.status(400).json({ error: 'Missing or invalid cards array' });
-        }
-    } catch (err) {
-        console.error('[PDF Generator] JSON解析错误:', err.message);
-        return res.status(400).json({ error: 'Invalid request format' });
-    }
-
-    console.log(`[PDF Generator] 开始生成 PDF,共 ${cards.length} 张卡`);
-
-    try {
-        // 加载中文字体
-        const fontPath = path.join(process.cwd(), 'public/fonts/NotoSansSC.ttf');
-        if (!fs.existsSync(fontPath)) {
-            console.error('[PDF Generator] 字体文件不存在:', fontPath);
-            throw new Error('中文字体文件不存在');
-        }
-
-        // 创建 PDF 文档
-        const doc = new PDFDocument({
-            size: 'A4',
-            margins: { top: 25, left: 10, right: 10, bottom: 25 }
-        });
-
-        // 收集 PDF 数据
-        const chunks = [];
-        doc.on('data', chunk => chunks.push(chunk));
-        doc.on('end', () => {
-            const pdfBuffer = Buffer.concat(chunks);
-            console.log(`[PDF Generator] 生成成功,大小: ${(pdfBuffer.length / 1024).toFixed(2)} KB`);
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=deck_${Date.now()}.pdf`);
-            res.send(pdfBuffer);
-        });
-
-        // 注册中文字体
-        doc.registerFont('NotoSansSC', fontPath);
-        doc.font('NotoSansSC');
-
-        // 标题
-        doc.fontSize(18).text('卡组列表', { align: 'center' });
-        doc.moveDown(1);
-
-        const leftMargin = 10;
-        const cardImgWidth = 120;
-        const cardImgHeight = 168;
-        const minRowHeight = 195;
-        const textLeftMargin = leftMargin + cardImgWidth + 24;
-        const pageHeight = 842;
-        const topMargin = 70;
-
-        let yPos = topMargin;
-
-        for (let i = 0; i < cards.length; i++) {
-            const card = cards[i];
-
-            // 预先计算效果文本的实际高度
-            const effect = card.effectTranslated || card.effect || '无效果';
-            const effectText = `效果:\n${effect.replace(/\|/g, '\n')}`;
-
-            doc.font('NotoSansSC').fontSize(11);
-            const textHeight = doc.heightOfString(effectText, {
-                width: 440,
-                lineGap: 4
-            });
-
-            const actualRowHeight = Math.max(minRowHeight, 52 + textHeight + 20);
-
-            if (yPos + actualRowHeight > pageHeight - 25) {
-                doc.addPage();
-                yPos = topMargin;
-            }
-
-            // 下载卡图（尝试多个URL格式）
-            let imgBuffer = null;
-            if (card.img) {
-                const imgUrls = [
-                    card.img,
-                    // 尝试替换 /image/card/ 为 /card/image/
-                    card.img.replace('/image/card/', '/card/image/'),
-                    // 尝试添加 .png 扩展名
-                    card.img.replace(/\.(jpg|jpeg)$/i, '.png')
-                ];
-
-                for (const url of imgUrls) {
-                    try {
-                        console.log(`[PDF Generator] 尝试下载: ${url}`);
-                        const imgResp = await axios.get(url, {
-                            responseType: 'arraybuffer',
-                            timeout: 8000,
-                            headers: {
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                                'Referer': 'https://lycee-tcg.com/',
-                                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
-                            }
-                        });
-                        imgBuffer = Buffer.from(imgResp.data);
-                        console.log(`[PDF Generator] ✅ 卡图下载成功: ${url}`);
-                        break; // 成功就跳出
-                    } catch (imgErr) {
-                        console.warn(`[PDF Generator] ❌ ${url} 失败: ${imgErr.message}`);
-                    }
+        let deck;
+        try {
+            let input = body(req);
+            // Support previously opened pages while using canonical server card data.
+            if (Array.isArray(input?.cards)) {
+                const cards = {};
+                for (const card of input.cards) {
+                    if (Object.hasOwn(cards, card.code)) throw new Error('卡号重复');
+                    cards[card.code] = card.num;
                 }
-
-                if (!imgBuffer) {
-                    console.warn(`[PDF Generator] ⚠️  所有URL均失败: ${card.code}`);
-                }
+                input = { name: input.name, cards };
             }
-
-            // 绘制卡图
-            if (imgBuffer) {
-                try {
-                    doc.image(imgBuffer, leftMargin, yPos, {
-                        width: cardImgWidth,
-                        height: cardImgHeight
-                    });
-                } catch (e) {
-                    console.warn(`[PDF Generator] 卡图添加失败`);
-                    // 画个框
-                    doc.rect(leftMargin, yPos, cardImgWidth, cardImgHeight).stroke();
-                }
-            } else {
-                // 无图时画个框
-                doc.rect(leftMargin, yPos, cardImgWidth, cardImgHeight).stroke();
-            }
-
-            // 卡号 + 数量
-            doc.font('NotoSansSC').fontSize(14);
-            const codeLine = `卡号: ${card.code || 'N/A'}  x${card.num || 1}`;
-            doc.text(codeLine, textLeftMargin, yPos + 10, {
-                width: 440
-            });
-
-            // 卡名
-            doc.fontSize(13);
-            const nameLine = `卡名: ${card.name || '未知'}`;
-            doc.text(nameLine, textLeftMargin, yPos + 30, {
-                width: 440,
-                ellipsis: true
-            });
-
-            // 效果（自动换行，支持较长文本，不限制高度）
-            doc.fontSize(11);
-            doc.text(effectText, textLeftMargin, yPos + 52, {
-                width: 440,
-                lineGap: 4
-            });
-
-            // 分隔线（使用动态计算的行高）
-            doc.moveTo(leftMargin, yPos + actualRowHeight - 8)
-               .lineTo(585, yPos + actualRowHeight - 8)
-               .stroke();
-
-            yPos += actualRowHeight;
-        }
-
-        // 结束文档
-        doc.end();
-
-    } catch (error) {
-        console.error('[PDF Generator] 错误:', error.message);
-        return res.status(500).json({ error: 'PDF generation failed', details: error.message });
-    }
+            deck = validateDeck(input);
+        } catch (e) { e.status ||= 400; throw e; }
+        const cards = hydrate(Object.keys(deck.cards));
+        const images = await downloadImages(cards);
+        const { buffer, missingImages } = await renderPdf(deck, cards, images);
+        if (buffer.length > 4 * 1024 * 1024) throw Object.assign(new Error('卡表文件过大，请减少卡牌种类后重试'), { status: 413 });
+        // Blob downloads should not be intercepted as direct PDF navigations (e.g. IDM).
+        const binary = req.headers.accept === 'application/octet-stream';
+        res.setHeader('Content-Type', binary ? 'application/octet-stream' : 'application/pdf');
+        if (!binary) res.setHeader('Content-Disposition', 'attachment; filename="lycee-deck.pdf"');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('X-Missing-Images', String(missingImages));
+        return res.status(200).send(buffer);
+    } catch (e) { return fail(res, e); }
 }

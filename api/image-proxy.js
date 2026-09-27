@@ -24,19 +24,22 @@ export default async function handler(req, res) {
     const allowedDomains = ['lycee-tcg.com', 'moetcg.club'];
     let hostname;
     try {
-        hostname = new URL(url).hostname;
+        const parsed = new URL(url);
+        hostname = parsed.hostname;
+        if (!['https:', 'http:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.port) throw new Error('Invalid URL');
     } catch (e) {
         return res.status(400).json({ error: 'Invalid URL' });
     }
 
-    if (!allowedDomains.some(domain => hostname.includes(domain))) {
+    if (!allowedDomains.some(domain => hostname === domain || hostname === 'www.' + domain)) {
         return res.status(403).json({ error: 'Domain not allowed' });
     }
 
     try {
-        console.log(`[Image Proxy] 请求: ${url}`);
         const response = await axios.get(url, {
             responseType: 'arraybuffer',
+            maxRedirects: 0,
+            maxContentLength: 3000000,
             timeout: 10000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

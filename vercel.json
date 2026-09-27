@@ -1,13 +1,13 @@
 {
   "version": 2,
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type" }
-      ]
+  "fluid": true,
+  "rewrites": [{ "source": "/api/auth/:path*", "destination": "/api/auth?path=:path*" }],
+  "buildCommand": "npm run build",
+  "outputDirectory": "public",
+  "functions": {
+    "api/*.js": {
+      "maxDuration": 60,
+      "includeFiles": "{data/catalog.json,lycee-*-database-final.json,public/fonts/NotoSansSC.ttf}"
     }
-  ]
+  }
 }

@@ -1,0 +1,13 @@
+.env*
+.neon
+.git/
+node_modules/
+temp/
+tests/
+**/__pycache__/
+*.log
+*.pdf
+*.json.bak
+lycee-japanese-database.json
+lycee-japanese-database-complete.json
+failed-*.txt
