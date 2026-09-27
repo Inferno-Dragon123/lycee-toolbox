@@ -8,7 +8,9 @@
 
 本轮构建、18 项 JavaScript/SQL 测试、16 项 Python 测试及真实 Neon 会话浏览器测试通过；临时测试账户已清理。邮箱真实收信与 OTP 输入交给用户亲自验收，不重复自动测试。当前本地入口为 `http://localhost:3100/`。
 
-本次 Vercel 预览部署 `dpl_8xZqemuvbc3wWw5NWaeQB5dmA5zM` 被平台置为 `BLOCKED / TEAM_ACCESS_REQUIRED`，原因是 HEAD 提交作者 `Lycee Toolbox <deploy@lycee-toolbox.local>` 没有项目部署权限。它不是可用预览。Preview 环境已配置社区开发分支的数据库和 Auth；未改 Production、未提交或推送。后续应使用真实已授权的 Git 提交身份和正常 Vercel 权限流程解决，不移除 Git 元数据绕过检查。
+Git 推送已成功：功能分支 `codex/community-decks`，功能提交 `1f264ef`，使用已核实的 `Inferno-Dragon123` GitHub 身份。Git 自动触发的 Vercel 部署 `dpl_998WuK4dS6w2mLmr3CCE4aEJe1gc` 已为 READY，云端公开列表返回 4 个官网样例，同源登录路由返回正常匿名会话。可使用[社区测试版](https://lycee-toolbox-9s7a89w21-inferno-dragon.vercel.app)（保留 Vercel 预览访问保护），邮箱收信和验证码登录由用户亲自验收。Preview 使用社区开发分支的数据库和 Auth；未改 Production、未合并到 master。
+
+此前直接 CLI 部署 `dpl_8xZqemuvbc3wWw5NWaeQB5dmA5zM` 因旧提交作者为占位邮箱而被置为 `BLOCKED / TEAM_ACCESS_REQUIRED`。已通过真实账号提交并正常 Git 推送解决；旧的 blocked URL 不再作为测试入口。
 
 2026-09-25：本地已切换到自有卡库；Neon 项目 `lycee-toolbox`（`gentle-paper-09879029`）的 `dev-catalog-migration` 分支已建表。生产数据库尚未迁移，代码尚未提交或推送；已部署并验证独立 Preview，正式域名仍运行旧版。首次接手的历史架构与实验文件说明保存在 [docs/initial-project-review.md](docs/initial-project-review.md)，其中“当前”指改造前。
 

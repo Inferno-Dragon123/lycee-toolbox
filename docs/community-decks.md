@@ -76,7 +76,7 @@ npm run decks:sync -- --id k0PjKL --limit 1
 
 数据库保存分页位置和待同步队列；每次先从首页发现新投稿，再继续历史页。已收录记录每 7 天允许重查。失败项目移到队尾。每天有界批次逐步增加覆盖，不能视为全站全量数据。直连连接的 advisory lock 防止并发同步。
 
-`.github/workflows/sync-official-decks.yml` 提供每日任务与手动入口。需代码进入 GitHub，并配置仓库 Secret `COMMUNITY_SYNC_DATABASE_URL` 为目标环境的 Neon **直连**地址。当前尚未提交/推送、未配置该 Secret，自动任务未启用。
+`.github/workflows/sync-official-decks.yml` 提供每日任务与手动入口。需配置仓库 Secret `COMMUNITY_SYNC_DATABASE_URL` 为目标环境的 Neon **直连**地址。工作流已推送功能分支，尚未合并到默认分支，也未配置该 Secret，定时任务未启用。
 
 ## 验证
 
@@ -107,3 +107,7 @@ SQL 测试使用 PGlite，覆盖独立归属、匿名/跨用户拒绝、异画�
 ### Git 发布接续（2026-09-28）
 
 用户随后明确授权尝试 `git push`。已通过当前 Git 凭据向 GitHub `/user` 核实账号为 `Inferno-Dragon123`（ID `196516294`），本次提交使用该真实账号对应的 GitHub 隐私邮箱，替代旧提交的占位作者。工作分支为 `codex/community-decks`，推送目标同名远端分支以触发 Preview；不会推送到 `master`。此前“detached HEAD／未提交”描述为推送前检查点。邮箱实际收信和 OTP 输入仍交由用户验收，已通过的测试不重复运行。
+
+推送结果：功能提交 `1f264ef8b402208ddd3b6cc61dc358e88fcc7da7` 已在 `origin/codex/community-decks`。Git 自动部署 `dpl_998WuK4dS6w2mLmr3CCE4aEJe1gc` 为 READY，地址 `https://lycee-toolbox-9s7a89w21-inferno-dragon.vercel.app`。固定分支别名为 `https://lycee-toolbox-git-codex-community-decks-inferno-dragon.vercel.app`，两者均已加入 Neon 开发分支 Auth 可信域名。
+
+仅补做了必要云端检查：公开列表返回 4 条且无错误，`/api/auth/get-session` 返回正常匿名会话 null。未发送测试邮件，未重复整套本地测试。最初 curl 因本机代理未配置而超时，设置终端 HTTPS_PROXY 后通过，不是线上功能故障。当前待办更新为：用户亲测邮箱收信/OTP、按反馈修复、再决定正式发布与官网同步启用。作者权限阻塞已解决，不再要求用户处理旧占位作者。
