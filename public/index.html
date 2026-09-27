@@ -317,9 +317,15 @@
     </div>
 
     <section id="communityPanel" class="panel community-panel" aria-label="卡组社区">
-        <div class="flex-wrap community-toolbar"><h2>卡组社区</h2><div class="flex-wrap"><span id="accountLabel" class="text-muted">未登录</span><button id="loginBtn" class="btn btn-outline">邮箱登录</button><button id="logoutBtn" class="btn btn-outline" hidden>退出</button></div></div>
+        <div class="flex-wrap community-toolbar"><h2>卡组社区</h2><div class="flex-wrap"><span id="accountLabel" class="text-muted">未登录</span><button id="loginBtn" class="btn btn-outline">邮箱登录</button><button id="profileBtn" class="btn btn-outline" hidden>设置昵称</button><button id="logoutBtn" class="btn btn-outline" hidden>退出</button></div></div>
         <div class="flex-wrap"><button id="browseDecksBtn" class="btn btn-primary">公开卡组</button><button id="myUploadsBtn" class="btn btn-outline">我的上传</button><button id="moderationBtn" class="btn btn-outline" hidden>内容管理</button><label class="flex-wrap"><input id="recommendEnabled" type="checkbox">开启卡组推荐</label></div>
-        <p class="text-muted" style="margin-top:10px">开启推荐后，点击卡牌旁的“相关卡组”，查找包含该卡的公开卡组。</p>
+        <p class="text-muted" style="margin-top:10px">开启推荐后，点击卡牌旁的“加入推荐”，可以组合多张卡筛选卡组。</p>
+        <div id="recommendControls" class="recommend-controls" hidden>
+            <div class="flex-wrap"><strong>已选卡牌 <span id="recommendCount">0 / 10</span></strong><button id="clearRecommendations" class="btn btn-outline btn-sm">清空选择</button></div>
+            <div id="selectedRecommendations" class="flex-wrap" style="margin:10px 0"></div>
+            <form id="recommendForm" class="flex-wrap"><input id="recommendCodesInput" placeholder="输入卡号，多个用逗号分隔" aria-label="添加推荐卡号" maxlength="200"><button class="btn btn-outline">添加卡号</button></form>
+            <div class="flex-wrap" style="margin-top:10px"><label>匹配方式 <select id="recommendMatch"><option value="all">同时包含全部所选卡牌</option><option value="any">包含任意一张所选卡牌</option></select></label><button id="showRecommendations" class="btn btn-primary">查看推荐</button></div>
+        </div>
         <div class="flex-wrap community-toolbar"><h2 id="communityHeading">公开卡组</h2><label>来源 <select id="communitySource"><option value="">全部</option><option value="community">本站投稿</option><option value="official_tournament">官网赛事</option><option value="official_user">官网玩家</option><option value="official">官网卡组</option></select></label><button id="communityRefresh" class="btn btn-outline">刷新</button></div>
         <p id="communityStatus" class="status" role="status"></p>
         <div id="communityResults"></div>
@@ -328,6 +334,10 @@
     <dialog id="loginDialog" aria-labelledby="loginTitle">
         <div class="dialog-heading"><h2 id="loginTitle">邮箱验证码登录</h2><button class="btn btn-outline" data-close-dialog="loginDialog" aria-label="关闭登录">关闭</button></div>
         <form id="loginForm"><label>邮箱<input id="loginEmail" type="email" required maxlength="254" autocomplete="email"></label><button id="sendOtp" type="button" class="btn btn-outline">发送验证码</button><label>验证码<input id="loginOtp" required inputmode="numeric" autocomplete="one-time-code" maxlength="12"></label><p id="loginMessage" role="status"></p><button id="verifyOtp" class="btn btn-primary">登录 / 注册</button><p class="text-muted">首次验证后自动创建账户。邮箱仅用于登录，公开卡组显示玩家编号。</p></form>
+    </dialog>
+    <dialog id="profileDialog" aria-labelledby="profileTitle">
+        <div class="dialog-heading"><h2 id="profileTitle">设置玩家昵称</h2><button class="btn btn-outline" data-close-dialog="profileDialog">关闭</button></div>
+        <form id="profileForm"><label>昵称<input id="profileNickname" required maxlength="48" autocomplete="nickname"></label><p class="text-muted">1～24 个字符。昵称会显示在你过去和今后发布的卡组旁；允许重名，玩家编号保持不变。</p><p id="profileMessage" role="status"></p><button id="saveProfile" class="btn btn-primary">保存昵称</button></form>
     </dialog>
     <dialog id="publishDialog" aria-labelledby="publishTitle">
         <div class="dialog-heading"><h2 id="publishTitle">发布卡组</h2><button class="btn btn-outline" data-close-dialog="publishDialog">关闭</button></div>

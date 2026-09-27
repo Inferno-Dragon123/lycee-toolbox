@@ -58,7 +58,7 @@ function renderDeck() {
             <span class="d-count">${deck[code]}</span>
             <button class="btn btn-outline btn-sm" data-code="${code}" data-delta="-1" aria-label="减少 ${code}">−</button>
             <button class="btn btn-outline btn-sm" data-code="${code}" data-delta="1" aria-label="增加 ${code}">+</button>
-            <button class="btn btn-outline btn-sm related-card" data-recommend="${code}">相关卡组</button>
+            <button class="btn btn-outline btn-sm related-card" data-recommend="${code}">加入推荐</button>
         </div>`).join('') || '<div class="text-muted" style="padding:20px;text-align:center">卡组为空</div>';
 }
 function renderResults(cards) {
@@ -77,7 +77,7 @@ function renderResults(cards) {
             </div>
             <div class="card-right">
                 <div class="card-header"><span class="card-name">${escapeHtml(card.name)}</span><span class="card-code">${card.code}</span></div>
-                <button class="btn btn-outline btn-sm related-card" data-recommend="${card.code}">相关卡组</button>
+                <button class="btn btn-outline btn-sm related-card" data-recommend="${card.code}">加入推荐</button>
                 <div class="text-muted">${escapeHtml(stats)}</div>
                 <div class="text-muted">${escapeHtml(card.version)}${card.trait ? ' · ' + escapeHtml(card.trait) : ''}</div>
                 ${card.translated ? '' : '<div class="text-muted">暂无中文译文，显示日文原文</div>'}

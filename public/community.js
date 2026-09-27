@@ -1,5 +1,5 @@
 import { createAuthClient } from '@neondatabase/auth';
-import { baseCode, sourceLabels, publicationInput, PUBLICATION_ID } from './community-format.js';
+import { baseCode, sourceLabels, publicationInput, PUBLICATION_ID, selectedCodes, validateNickname } from './community-format.js';
 
 const $ = id => document.getElementById(id);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -11,7 +11,7 @@ async function request(url, options) {
 }
 export async function initCommunity(editor) {
     const auth = createAuthClient(`${location.origin}/api/auth`);
-    let user = null, admin = false, mode = 'public', page = 1, selected = '', serial = 0, previewSerial = 0;
+    let user = null, profile = null, admin = false, mode = 'public', page = 1, selected = [], serial = 0, previewSerial = 0;
     let items = [], editing = null, publishing = null, preview = null, otpUntil = 0;
     const message = (text, error = false) => {
         $('communityStatus').textContent = text;
@@ -20,16 +20,25 @@ export async function initCommunity(editor) {
     function enabled() { return $('recommendEnabled').checked; }
     function openLogin() { $('loginMessage').textContent = ''; $('loginDialog').showModal(); }
     function setMode(next) { mode = next; page = 1; return refresh(); }
+    function renderSelection() {
+        $('recommendControls').hidden = !enabled();
+        $('selectedRecommendations').innerHTML = selected.map(code => `<button class="btn btn-outline btn-sm" data-remove-recommend="${code}" aria-label="移除 ${code}">${code} ×</button>`).join('') || '<span class="text-muted">尚未选择卡牌</span>';
+        $('recommendCount').textContent = `${selected.length} / 10`;
+    }
+    function showAccount() {
+        $('accountLabel').textContent = user ? `已登录：${profile?.displayName || '玩家'}` : '未登录';
+        $('profileBtn').hidden = !user;
+    }
     async function refresh() {
         const version = ++serial;
-        $('communityHeading').textContent = { public: '公开卡组', mine: '我的上传', recommend: `包含 ${selected || '所选卡牌'} 的卡组`, moderation: '管理公开内容' }[mode];
+        $('communityHeading').textContent = { public: '公开卡组', mine: '我的上传', recommend: `包含${$('recommendMatch').value === 'all' ? '全部' : '任意'}所选卡牌的卡组`, moderation: '管理公开内容' }[mode];
         $('communityPrev').disabled = $('communityNext').disabled = true;
         if ((mode === 'mine' || mode === 'moderation') && !user) { $('communityResults').textContent = '登录后查看和管理自己的上传。'; return; }
-        if (mode === 'recommend' && (!enabled() || !selected)) { $('communityResults').textContent = '开启推荐后，点击卡牌旁的“相关卡组”。'; return; }
+        if (mode === 'recommend' && (!enabled() || !selected.length)) { $('communityResults').textContent = '点击卡牌旁的“加入推荐”，或输入卡号添加筛选条件。'; $('communityPage').textContent = ''; message('可选择多张卡，默认查找同时包含所有所选卡牌的卡组。'); return; }
         const params = new URLSearchParams({ page });
         if (mode === 'mine') params.set('mine', '1');
         if (mode === 'moderation') params.set('moderation', '1');
-        if (mode === 'recommend') params.set('code', selected);
+        if (mode === 'recommend') { params.set('codes', selected.join(',')); params.set('match', $('recommendMatch').value); }
         if ($('communitySource').value) params.set('source', $('communitySource').value);
         message('正在读取卡组…');
         try {
@@ -38,7 +47,7 @@ export async function initCommunity(editor) {
             items = data.items;
             $('communityResults').innerHTML = items.map(item => `<article class="community-item" data-publication="${item.id}">
                 <div><a class="community-title" href="${ownLink(item.id)}">${escape(item.name)}</a>
-                <p class="text-muted">${escape(sourceLabels[item.source])} · ${escape(item.author_name)} · ${new Date(item.updated_at).toLocaleDateString('zh-CN')}${item.status !== 'public' ? ' · 已下架' : ''}${item.moderated ? ' · 管理员下架' : ''}</p>
+                <p class="text-muted">${escape(sourceLabels[item.source])} · ${escape(item.author_name)}${item.author_tag && item.author_tag !== item.author_name ? `（${escape(item.author_tag)}）` : ''} · ${new Date(item.updated_at).toLocaleDateString('zh-CN')}${item.status !== 'public' ? ' · 已下架' : ''}${item.moderated ? ' · 管理员下架' : ''}</p>
                 ${item.description ? `<p class="community-description">${escape(item.description)}</p>` : ''}</div>
                 <div class="flex-wrap"><a href="${escape(item.source_url || ownLink(item.id))}" target="_blank" rel="noopener">${item.source_url ? '官网原链接' : '卡组链接'}</a>
                 <button class="btn btn-outline" data-action="preview">预览</button><button class="btn btn-primary" data-action="import">导入卡组</button>
@@ -56,7 +65,7 @@ export async function initCommunity(editor) {
         user = result.data?.user || null;
         const session = user ? await request('/api/community?session=1') : { admin: false };
         admin = Boolean(session.admin);
-        $('accountLabel').textContent = user ? `已登录：${user.email}` : '未登录';
+        profile = session.profile || null; showAccount();
         $('loginBtn').hidden = Boolean(user); $('logoutBtn').hidden = !user; $('moderationBtn').hidden = !admin;
     }
     async function detail(id) { return request('/api/community?id=' + encodeURIComponent(id)); }
@@ -137,6 +146,20 @@ export async function initCommunity(editor) {
         finally { $('confirmPublish').disabled = false; }
     });
     $('loginBtn').addEventListener('click', openLogin);
+    $('profileBtn').addEventListener('click', () => {
+        $('profileNickname').value = profile?.nickname || '';
+        $('profileMessage').textContent = profile?.playerTag || '';
+        $('profileDialog').showModal();
+    });
+    $('profileForm').addEventListener('submit', async event => {
+        event.preventDefault(); $('saveProfile').disabled = true;
+        try {
+            const nickname = validateNickname($('profileNickname').value);
+            const result = await request('/api/community', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'profile', nickname }) });
+            profile = result.profile; showAccount(); $('profileDialog').close(); await refresh(); message('昵称已更新，过去发布的卡组也会显示新昵称。');
+        } catch (e) { $('profileMessage').textContent = e.message; }
+        finally { $('saveProfile').disabled = false; }
+    });
     $('sendOtp').addEventListener('click', async () => {
         if (!$('loginEmail').reportValidity() || Date.now() < otpUntil) return;
         $('sendOtp').disabled = true;
@@ -171,17 +194,32 @@ export async function initCommunity(editor) {
     $('communityNext').addEventListener('click', () => { page++; refresh(); });
     $('recommendEnabled').addEventListener('change', () => {
         document.body.classList.toggle('recommend-enabled', enabled());
+        renderSelection();
         try { localStorage.setItem('lycee:recommend', enabled() ? '1' : '0'); } catch { /* optional preference */ }
         setMode(enabled() ? 'recommend' : 'public');
     });
     document.addEventListener('click', event => {
         const button = event.target.closest('[data-recommend]');
         if (!button || !enabled()) return;
-        selected = baseCode(button.dataset.recommend); setMode('recommend');
-        $('communityPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        try { selected = selectedCodes([...selected, button.dataset.recommend]); renderSelection(); setMode('recommend'); }
+        catch (e) { message(e.message, true); }
     });
+    $('selectedRecommendations').addEventListener('click', event => {
+        const button = event.target.closest('[data-remove-recommend]');
+        if (!button) return;
+        selected = selected.filter(code => code !== button.dataset.removeRecommend); renderSelection(); setMode('recommend');
+    });
+    $('recommendForm').addEventListener('submit', event => {
+        event.preventDefault();
+        try { selected = selectedCodes([...selected, ...$('recommendCodesInput').value.split(/[\s,，]+/).filter(Boolean)]); $('recommendCodesInput').value = ''; renderSelection(); setMode('recommend'); }
+        catch (e) { message(e.message, true); }
+    });
+    $('clearRecommendations').addEventListener('click', () => { selected = []; renderSelection(); setMode('recommend'); });
+    $('recommendMatch').addEventListener('change', () => setMode('recommend'));
+    $('showRecommendations').addEventListener('click', () => setMode('recommend'));
     try { $('recommendEnabled').checked = localStorage.getItem('lycee:recommend') === '1'; } catch { /* optional preference */ }
     document.body.classList.toggle('recommend-enabled', enabled());
+    renderSelection();
     try { await updateSession(); } catch (e) { message(e.message, true); }
     await refresh();
     const linked = new URLSearchParams(location.search).get('publication');

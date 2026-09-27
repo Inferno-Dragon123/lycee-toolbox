@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { communityHandler } from '../api/community.js';
-import { baseCode, publicationInput } from '../public/community-format.js';
-import { createPublication, updatePublication, listPublications, getPublication, upsertOfficial } from '../lib/community-store.js';
+import { baseCode, publicationInput, validateNickname, selectedCodes } from '../public/community-format.js';
+import { createPublication, updatePublication, listPublications, getPublication, upsertOfficial, getProfile, setProfile } from '../lib/community-store.js';
 import { parseOfficialList } from '../lib/official-deck-list.js';
 import { checkOrigin, currentUser } from '../lib/community-auth.js';
 import authHandler from '../api/auth.js';
@@ -17,15 +17,27 @@ test('publication validation groups artworks without mutating saved card identit
     assert.throws(() => publicationInput({ name: 'unfinished', cards: { 'LO-6826': 1 } }), /60/);
     assert.throws(() => publicationInput({ cards: { 'LO-6826': 60 } }), /名称/);
     assert.deepEqual(input.deck.cards, { 'LO-6826': 30, 'LO-6826-A': 30 });
+    assert.deepEqual(selectedCodes(['LO-6826', 'LO-6826-A', 'lo-0001a']), ['LO-6826', 'LO-0001']);
+    assert.throws(() => selectedCodes(Array.from({ length: 11 }, (_, i) => `LO-${String(i).padStart(4, '0')}`)), /10/);
+    assert.equal(validateNickname('  玩家🍀  '), '玩家🍀');
+    assert.equal(validateNickname('🍀'.repeat(24)), '🍀'.repeat(24));
+    for (const name of ['', '   ', 'a'.repeat(25), '玩家\n名字', '玩家\u200b名字', null]) assert.throws(() => validateNickname(name));
 });
 test('SQL publication lifecycle preserves independent ownership, visibility, versions and indexes', async () => {
     const pg = new PGlite();
-    for (const file of ['001_decks.sql', '002_community.sql']) await pg.exec(await fs.readFile(new URL('../migrations/' + file, import.meta.url), 'utf8'));
+    for (const file of ['001_decks.sql', '002_community.sql', '003_profiles.sql']) await pg.exec(await fs.readFile(new URL('../migrations/' + file, import.meta.url), 'utf8'));
     // PGlite executes serially in one session; cloud integration covers real pg locking.
     const db = { async query(sql, params) { if (sql.includes('pg_advisory_xact_lock')) return { rows: [] }; return pg.query(sql, params); }, async connect() { return { query: this.query, release() {} }; } };
     try {
         const first = await createPublication(alice, input, db), second = await createPublication(bob, input, db);
         assert.notEqual(first.id, second.id);
+        await setProfile(alice, '新的昵称', db);
+        assert.equal((await getPublication(first.id, null, db)).author_name, '新的昵称');
+        assert.notEqual((await getPublication(second.id, null, db)).author_name, '新的昵称');
+        await setProfile(bob, '新的昵称', db);
+        assert.notEqual((await getProfile(alice, db)).playerTag, (await getProfile(bob, db)).playerTag);
+        await setProfile(alice, '再次改名', db);
+        assert.equal((await listPublications({ mine: true, user: alice }, db)).items[0].author_name, '再次改名');
         assert.equal((await pg.query('SELECT count(*)::int n FROM toolbox_decks')).rows[0].n, 1);
         assert.equal((await listPublications({ code: 'LO-6826-K' }, db)).items.length, 2);
         await assert.rejects(updatePublication(bob, first.id, 1, 'delete', null, db), { status: 404 });
@@ -55,6 +67,13 @@ test('SQL publication lifecycle preserves independent ownership, visibility, ver
         assert.equal(await upsertOfficial(official, db), id);
         await assert.rejects(updatePublication(alice, id, 1, 'delete', null, db), { status: 404 });
         assert.equal((await listPublications({ source: 'official_user' }, db)).items.length, 1);
+        const combo = await createPublication(alice, publicationInput({ name: '双卡组合', cards: { 'LO-6826': 30, 'LO-0001': 30 } }), db);
+        const filtered = await listPublications({ codes: ['LO-6826-A', 'LO-0001A', 'LO-6826'], match: 'all' }, db);
+        assert.deepEqual(filtered.items.map(x => x.id), [combo.id]);
+        const any = await listPublications({ codes: ['LO-6826', 'LO-0001'], match: 'any' }, db);
+        assert(any.items.some(x => x.id === second.id)); assert(any.items.some(x => x.id === combo.id));
+        await updatePublication(alice, combo.id, 1, 'unpublish', null, db);
+        assert.equal((await listPublications({ codes: ['LO-6826', 'LO-0001'] }, db)).items.length, 0);
         await pg.query(`INSERT INTO toolbox_community_limits VALUES ('create:test-quota', date_trunc('hour', now()), 20)`);
         await assert.rejects(createPublication({ id: 'test-quota' }, input, db), { status: 429 });
     } finally { await pg.close(); }
@@ -79,6 +98,15 @@ test('API rejects anonymous writes, cross-site requests, forged owners and malfo
     assert.equal((await call(signed, { url: '/api/community?moderation=1' })).statusCode, 403);
     const unverified = communityHandler({ identify: async () => ({ ...alice, emailVerified: false }) });
     assert.equal((await call(unverified, req)).statusCode, 403);
+    const profileHandler = communityHandler({ identify: async () => alice, store: { setProfile: async (user, nickname) => ({ owner: user.id, nickname }) } });
+    const profile = await call(profileHandler, { ...req, method: 'PATCH', body: { action: 'profile', owner_id: bob.id, nickname: '  昵称  ' } });
+    assert.deepEqual(profile.data.profile, { owner: alice.id, nickname: '昵称' });
+    assert.equal((await call(anonymous, { ...req, method: 'PATCH', body: { action: 'profile', nickname: '昵称' } })).statusCode, 401);
+    assert.equal((await call(profileHandler, { ...req, method: 'PATCH', body: { action: 'profile', nickname: '\u200b' } })).statusCode, 400);
+    const listHandler = communityHandler({ identify: async () => null, store: { listPublications: async input => input } });
+    assert.deepEqual((await call(listHandler, { url: '/api/community?code=LO-6826&codes=LO-6826-A,LO-0001A&match=all' })).data.codes, ['LO-6826', 'LO-0001']);
+    assert.equal((await call(listHandler, { url: '/api/community?codes=LO-6826,bad' })).statusCode, 400);
+    assert.equal((await call(listHandler, { url: '/api/community?match=invalid' })).statusCode, 400);
 });
 test('auth transport is same-origin and does not expose other managed auth routes', async () => {
     assert.throws(() => checkOrigin({ headers: { host: 'localhost', origin: 'https://evil.test' } }), { status: 403 });

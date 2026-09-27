@@ -4,6 +4,8 @@
 
 ## 当前改造状态
 
+2026-09-28 后续：新增自定义昵称与最多 10 种卡牌的组合推荐（全部/任意包含），迁移 `003_profiles.sql` 已应用到社区开发分支。已通过相关 SQL/API 和轻量 UI 检查；容量实测、模拟假设和复查脚本见 [docs/storage-capacity.md](docs/storage-capacity.md)。持续预览入口：[功能分支测试版](https://lycee-toolbox-git-codex-community-decks-inferno-dragon.vercel.app)。正式站未切换。
+
 2026-09-28：卡组社区初版已完成本地验证，新增邮箱登录、主动发布和管理、按单卡推荐、预览导入及官网增量同步。使用独立 Neon 分支 `dev-community-decks`（`br-misty-pond-b48ax8kf`），迁移 `002_community.sql` 已应用。维护和接续入口见 [docs/community-decks.md](docs/community-decks.md)。下方 2026-09-25 记录属于上一阶段，不包含本次社区功能。
 
 本轮构建、18 项 JavaScript/SQL 测试、16 项 Python 测试及真实 Neon 会话浏览器测试通过；临时测试账户已清理。邮箱真实收信与 OTP 输入交给用户亲自验收，不重复自动测试。当前本地入口为 `http://localhost:3100/`。

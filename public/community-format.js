@@ -7,6 +7,18 @@ export function baseCode(value) {
     if (!CODE.test(code)) throw new Error('请输入有效卡号');
     return code.slice(0, 7);
 }
+export function selectedCodes(values = []) {
+    if (!Array.isArray(values) || values.length > 100) throw new Error('最多选择 10 种卡牌');
+    const codes = [...new Set(values.map(baseCode))];
+    if (codes.length > 10) throw new Error('最多选择 10 种卡牌');
+    return codes;
+}
+export function validateNickname(value) {
+    if (typeof value !== 'string') throw new Error('请填写昵称');
+    const nickname = value.normalize('NFKC').trim();
+    if (!nickname || [...nickname].length > 24 || /[\p{Cc}\p{Cf}]/u.test(nickname)) throw new Error('昵称须为 1～24 个字符，不能包含换行或隐藏字符');
+    return nickname;
+}
 export function publicationInput(input) {
     const deck = validateDeck(input);
     if (Object.values(deck.cards).reduce((a, b) => a + b, 0) !== 60) throw new Error('公开发布的卡组须为 60 张；未完成的卡组可以保存分享或导出文件');

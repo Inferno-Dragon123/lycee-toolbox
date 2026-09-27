@@ -1,6 +1,6 @@
 # 卡组社区开发与维护
 
-当前实现：邮箱验证码登录、主动公开发布、我的上传、名称/说明/卡牌编辑、下架/重新公开/删除、单卡推荐、独立预览、导入与恢复导入前草稿。浏览、预览和导入不要求登录。
+当前实现：邮箱验证码登录、自定义昵称、主动公开发布、我的上传、名称/说明/卡牌编辑、下架/重新公开/删除、多卡推荐、独立预览、导入与恢复导入前草稿。浏览、预览和导入不要求登录。
 
 ## 数据与权限
 
@@ -11,7 +11,7 @@
 - 下架/删除隐藏发布记录，不撤销独立匿名分享链接或他人已经导入的副本。删除为软删除，旧快照保留。
 - 写请求必须来自同源 JSON 请求，并在服务端重新验证会话、邮箱验证状态及所有权。`version` 防止多标签页覆盖。作者无法解除管理员下架。
 - 每用户每小时最多 20 次发布、60 次管理操作，最多保留 200 条未删除发布；数据库计数不依赖单个 serverless 实例内存。
-- 公开显示哈希生成的玩家编号，不公开邮箱。昵称编辑尚未加入。
+- 昵称保存在 `toolbox_profiles`，1～24 个字符，允许重名；未设置时显示玩家编号。公开卡组动态读取作者最新昵称，同时保留固定玩家编号，不公开邮箱。改名每用户每小时最多 10 次，不影响归属或卡组更新时间。
 
 ## 登录与环境配置
 
@@ -45,6 +45,7 @@ npm run dev
 | --- | --- |
 | `GET /api/community?page=1&source=community` | 公开列表，每页 20 条，source 可省略 |
 | `GET /api/community?code=LO-6826-A` | 按基础卡号推荐 |
+| `GET /api/community?codes=LO-6826,LO-6690&match=all` | 多卡推荐，all 同时包含，any 任意包含；同编号异画去重，最多 10 种 |
 | `GET /api/community?mine=1` | 当前用户的未删除发布 |
 | `GET /api/community?moderation=1` | 管理员列表，含管理下架记录 |
 | `GET /api/community?id=p_…` | 详情；未知卡号列在 missing，禁止不完整导入 |
@@ -54,6 +55,8 @@ npm run dev
 | `DELETE /api/community` | `{id,version}` 删除自己的发布 |
 
 PATCH actions：`edit`、`publish`、`unpublish`，管理员另有 `hide`、`unhide`。
+
+`PATCH /api/community` 的 `{action:"profile", nickname:"昵称"}` 更新当前登录用户自己的昵称，客户端不能指定被修改用户。`GET ?session=1` 另返回本人的 `profile`，用于设置页和登录状态显示。
 
 公开发布链接 `/?publication=p_…` 打开预览，不直接替换组卡器。原 `/?deck=d_…` 保留。
 
@@ -111,3 +114,11 @@ SQL 测试使用 PGlite，覆盖独立归属、匿名/跨用户拒绝、异画�
 推送结果：功能提交 `1f264ef8b402208ddd3b6cc61dc358e88fcc7da7` 已在 `origin/codex/community-decks`。Git 自动部署 `dpl_998WuK4dS6w2mLmr3CCE4aEJe1gc` 为 READY，地址 `https://lycee-toolbox-9s7a89w21-inferno-dragon.vercel.app`。固定分支别名为 `https://lycee-toolbox-git-codex-community-decks-inferno-dragon.vercel.app`，两者均已加入 Neon 开发分支 Auth 可信域名。
 
 仅补做了必要云端检查：公开列表返回 4 条且无错误，`/api/auth/get-session` 返回正常匿名会话 null。未发送测试邮件，未重复整套本地测试。最初 curl 因本机代理未配置而超时，设置终端 HTTPS_PROXY 后通过，不是线上功能故障。当前待办更新为：用户亲测邮箱收信/OTP、按反馈修复、再决定正式发布与官网同步启用。作者权限阻塞已解决，不再要求用户处理旧占位作者。
+
+### 昵称与多卡推荐（2026-09-28）
+
+用户追加授权自定义昵称、多卡检索和容量评估。已实现动态昵称关联、固定玩家编号、多卡 ALL/ANY 匹配、基础编号去重、10 种上限、可移除/清空的所选卡牌和批量卡号输入。`003_profiles.sql` 已应用到同一社区开发分支，生产未变。
+
+验证只运行构建和 5 项相关测试（扩展昵称归属、旧发布改名、重名隔离、多卡匹配/去重/下架过滤），以及一次 `tests/community-ui-smoke.js`。该 UI 测试仅模拟身份/昵称传输，推荐查询用真实开发数据库，覆盖显示转义、多卡交集/并集、移除清空和手机布局；没有新建账户或发送邮件，也未重跑旧 PDF、爬虫等无关测试。
+
+容量结果和复查方法见 [storage-capacity.md](storage-capacity.md)：项目指标 31.22 MiB，1 万套模拟卡组约 44～50 MiB，1 万个昵称资料约 2.06 MiB。模拟只在本地执行。下一步为推送同一功能分支、等预览构建完成后由用户体验昵称与多卡筛选；邮箱 OTP 仍由用户亲测。

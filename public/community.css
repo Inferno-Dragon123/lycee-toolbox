@@ -9,6 +9,8 @@
 .community-panel select, dialog input, dialog textarea { border: 1px solid #ccd7e6; border-radius: 10px; padding: 9px 12px; font: inherit; max-width: 100%; }
 .community-panel .status { border-radius: 10px; }
 .related-card { display: none; margin-top: 6px; }
+.recommend-controls { background: #f4f7fc; padding: 14px; margin: 12px 0; border-radius: 12px; }
+#recommendCodesInput { min-width: 0; flex: 1; border: 1px solid #ccd7e6; border-radius: 10px; padding: 9px 12px; font: inherit; }
 .recommend-enabled .related-card { display: inline-block; }
 dialog { margin: auto; padding: 24px; width: min(560px, calc(100vw - 24px)); max-height: 90vh; overflow: auto; border: 1px solid #d4dfec; border-radius: 18px; color: #1a2639; }
 dialog::backdrop { background: #0f203b80; }

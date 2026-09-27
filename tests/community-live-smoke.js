@@ -90,7 +90,7 @@ try {
     await page.type('#field_code', variant); await page.click('#searchBtn');
     await page.waitForFunction(code => { const rows = document.querySelectorAll('#searchResultArea .search-card'); return rows.length === 1 && rows[0].dataset.card === code; }, {}, variant);
     await page.click(`#searchResultArea [data-recommend="${variant}"]`);
-    await page.waitForFunction(base => document.querySelector('#communityHeading').textContent.includes(base) && document.querySelectorAll('.community-item').length >= 2, {}, baseCode(variant));
+    await page.waitForFunction(base => document.querySelector('#selectedRecommendations').textContent.includes(base) && document.querySelectorAll('.community-item').length >= 2, {}, baseCode(variant));
     await fs.mkdir('temp/community', { recursive: true });
     await page.screenshot({ path: 'temp/community/verified-desktop.png', fullPage: true });
     await page.setViewport({ width: 390, height: 844 });
