@@ -1,7 +1,8 @@
 import { CODE, normalizeCode, validateDeck } from './deck-format.js';
 
 export const PUBLICATION_ID = /^p_[A-Za-z0-9_-]{22}$/;
-export const sourceLabels = { community: '本站投稿', official_tournament: '官网赛事', official_user: '官网玩家', official: '官网卡组' };
+// Keep the old API source value as a compatibility alias, not a separate category.
+export const sourceLabels = { community: '本站投稿', official_tournament: '官网赛事', official_user: '官网玩家', official: '官网玩家' };
 export function baseCode(value) {
     const code = normalizeCode(value);
     if (!CODE.test(code)) throw new Error('请输入有效卡号');

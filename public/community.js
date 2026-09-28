@@ -31,6 +31,7 @@ export async function initCommunity(editor) {
     }
     async function refresh() {
         const version = ++serial;
+        $('communityResults').scrollTop = 0;
         $('communityHeading').textContent = { public: '公开卡组', mine: '我的上传', recommend: `包含${$('recommendMatch').value === 'all' ? '全部' : '任意'}所选卡牌的卡组`, moderation: '管理公开内容' }[mode];
         $('communityPrev').disabled = $('communityNext').disabled = true;
         if ((mode === 'mine' || mode === 'moderation') && !user) { $('communityResults').textContent = '登录后查看和管理自己的上传。'; return; }
@@ -54,6 +55,7 @@ export async function initCommunity(editor) {
                 ${mode === 'mine' ? `<button class="btn btn-outline" data-action="edit">编辑</button><button class="btn btn-outline" data-action="${item.status === 'public' ? 'unpublish' : 'publish'}">${item.status === 'public' ? '下架' : '重新公开'}</button><button class="btn btn-danger" data-action="delete">删除</button>` : ''}
                 ${admin ? `<button class="btn btn-outline" data-action="${item.moderated ? 'unhide' : 'hide'}">${item.moderated ? '解除管理下架' : '管理下架'}</button>` : ''}</div></article>`).join('') || '<p class="text-muted">暂无卡组。官网资料正在逐步收录，当前结果不代表官网全部卡组。</p>';
             $('communityPage').textContent = `第 ${page} 页`;
+            $('communityResults').scrollTop = 0;
             $('communityPrev').disabled = page <= 1;
             $('communityNext').disabled = !data.hasMore;
             message(mode === 'recommend' ? '按基础卡号匹配，同编号不同卡面均包含在结果中。' : '卡组由玩家公开发布，官网来源单独标注。');

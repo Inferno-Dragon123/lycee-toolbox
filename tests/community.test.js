@@ -74,6 +74,14 @@ test('SQL publication lifecycle preserves independent ownership, visibility, ver
         assert.equal((await pg.query('SELECT sum(quantity)::int n FROM toolbox_publication_cards WHERE publication_id = $1', [id])).rows[0].n, 60);
         await assert.rejects(updatePublication(alice, id, 1, 'delete', null, db), { status: 404 });
         assert.equal((await listPublications({ source: 'official_user' }, db)).items.length, 1);
+        assert.equal((await listPublications({ source: 'official' }, db)).items[0].id, id);
+        // Legacy rows remain discoverable before migration, then keep the same ID afterward.
+        await pg.query("UPDATE toolbox_publications SET source = 'official' WHERE id = $1", [id]);
+        assert.equal((await listPublications({ source: 'official_user' }, db)).items[0].id, id);
+        await pg.exec(await fs.readFile(new URL('../migrations/004_merge_official_source.sql', import.meta.url), 'utf8'));
+        assert.equal((await getPublication(id, null, db)).source, 'official_user');
+        const manualId = await upsertOfficial({ ...official, key: 'manual-test', source: 'official' }, db);
+        assert.equal((await getPublication(manualId, null, db)).source, 'official_user');
         const combo = await createPublication(alice, publicationInput({ name: '双卡组合', cards: { 'LO-6826': 30, 'LO-0001': 30 } }), db);
         const filtered = await listPublications({ codes: ['LO-6826-A', 'LO-0001A', 'LO-6826'], match: 'all' }, db);
         assert.deepEqual(filtered.items.map(x => x.id), [combo.id]);

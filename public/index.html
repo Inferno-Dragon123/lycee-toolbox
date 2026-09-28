@@ -326,9 +326,9 @@
             <form id="recommendForm" class="flex-wrap"><input id="recommendCodesInput" placeholder="输入卡号，多个用逗号分隔" aria-label="添加推荐卡号" maxlength="200"><button class="btn btn-outline">添加卡号</button></form>
             <div class="flex-wrap" style="margin-top:10px"><label>匹配方式 <select id="recommendMatch"><option value="all">同时包含全部所选卡牌</option><option value="any">包含任意一张所选卡牌</option></select></label><button id="showRecommendations" class="btn btn-primary">查看推荐</button></div>
         </div>
-        <div class="flex-wrap community-toolbar"><h2 id="communityHeading">公开卡组</h2><label>来源 <select id="communitySource"><option value="">全部</option><option value="community">本站投稿</option><option value="official_tournament">官网赛事</option><option value="official_user">官网玩家</option><option value="official">官网卡组</option></select></label><button id="communityRefresh" class="btn btn-outline">刷新</button></div>
+        <div class="flex-wrap community-toolbar"><h2 id="communityHeading">公开卡组</h2><label>来源 <select id="communitySource"><option value="">全部</option><option value="community">本站投稿</option><option value="official_tournament">官网赛事</option><option value="official_user">官网玩家</option></select></label><button id="communityRefresh" class="btn btn-outline">刷新</button></div>
         <p id="communityStatus" class="status" role="status"></p>
-        <div id="communityResults"></div>
+        <div id="communityResults" class="community-results" role="region" aria-labelledby="communityHeading" tabindex="0"></div>
         <div class="flex-wrap"><button id="communityPrev" class="btn btn-outline" disabled>上一页</button><span id="communityPage"></span><button id="communityNext" class="btn btn-outline" disabled>下一页</button></div>
     </section>
     <dialog id="loginDialog" aria-labelledby="loginTitle">

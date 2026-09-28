@@ -2,6 +2,8 @@
 .community-panel { margin-top: 24px; }
 .community-panel h2 { font-size: 1.2rem; margin: 16px 0; }
 .community-toolbar { justify-content: space-between; margin-bottom: 12px; }
+.community-results { height: min(560px, 65vh); min-height: 240px; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; padding-right: 10px; margin-bottom: 14px; }
+.community-results:focus-visible { outline: 2px solid #2a7de1; outline-offset: 3px; }
 .community-item { display: grid; gap: 12px; border-top: 1px solid #e9edf4; padding: 18px 0; overflow-wrap: anywhere; }
 .community-title { font-size: 1.05rem; font-weight: 600; color: #225a9b; }
 .community-description { white-space: pre-wrap; margin-top: 8px; max-height: 6em; overflow: auto; }
