@@ -1,0 +1,135 @@
+name: Daily card and deck maintenance
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'Which data to update'
+        type: choice
+        options: [all, cards, decks]
+        default: all
+      validate_only:
+        description: 'Check card configuration/build/push permission without crawling or translating cards'
+        type: boolean
+        default: false
+      limit:
+        description: 'Maximum decks to process (1-100)'
+        default: '100'
+        required: true
+      days:
+        description: 'Look back days; 0 includes all history'
+        default: '365'
+        required: true
+  schedule:
+    # 04:20 Asia/Shanghai. Card update finishes before deck crawling starts.
+    - cron: '20 20 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: official-site-maintenance
+  cancel-in-progress: false
+jobs:
+  cards:
+    if: github.event_name == 'schedule' || inputs.scope != 'decks'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/community-decks
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+      - name: Restore completed translations
+        uses: actions/cache/restore@v4
+        with:
+          path: temp/lycee-official-update/alignment/translation-cache
+          key: translations-v2-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: translations-v2-
+      - name: Update cards and translations
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          VALIDATE_ONLY: ${{ inputs.validate_only || false }}
+        run: |
+          python -c "import os; assert os.environ.get('DEEPSEEK_API_KEY'), 'DEEPSEEK_API_KEY is not configured'"
+          if [ "$VALIDATE_ONLY" = "true" ]; then
+            python scripts/update_and_translate.py --skip-crawl --dry-run --no-git
+          else
+            python scripts/update_and_translate.py --catalog --no-git
+          fi
+      - name: Validate generated catalog
+        run: npm run build
+      - name: Commit and push changed card data
+        env:
+          VALIDATE_ONLY: ${{ inputs.validate_only || false }}
+        run: |
+          if [ "$VALIDATE_ONLY" = "true" ]; then
+            git push --dry-run origin HEAD:codex/community-decks
+            exit 0
+          fi
+          git add -- lycee-japanese-database-final.json lycee-chinese-database-final.json data/catalog.json
+          if git diff --cached --quiet; then
+            echo 'Card data unchanged; no commit needed.'
+            exit 0
+          fi
+          git -c user.name="Inferno Dragon" -c user.email="196516294+Inferno-Dragon123@users.noreply.github.com" commit -m "chore: refresh card data and translations"
+          # Fail on concurrent edits rather than overwriting another commit.
+          git push origin HEAD:codex/community-decks
+      - name: Save translation progress even after a partial failure
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: temp/lycee-official-update/alignment/translation-cache
+          key: translations-v2-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Save card update reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: card-update-reports
+          path: |
+            temp/lycee-official-update/latest-report.json
+            temp/lycee-official-update/alignment/report.json
+            temp/lycee-official-update/alignment/dry-run.json
+            temp/lycee-official-update/alignment/translation-result.json
+          retention-days: 7
+          if-no-files-found: ignore
+  sync:
+    needs: cards
+    if: always() && !cancelled() && (github.event_name == 'schedule' || inputs.scope != 'cards')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Fetch the updated catalog after the card job has pushed its changes.
+          ref: codex/community-decks
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+      - name: Incrementally sync official decks
+        run: npm run decks:sync -- --limit "$SYNC_LIMIT" --days "$SYNC_DAYS" --pages 3
+        env:
+          SYNC_LIMIT: ${{ inputs.limit || '100' }}
+          SYNC_DAYS: ${{ inputs.days || '365' }}
+          DATABASE_URL_UNPOOLED: ${{ secrets.COMMUNITY_SYNC_DATABASE_URL }}
+      - name: Save sync report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: official-deck-sync-report
+          path: temp/community/official-sync-report.json
+          retention-days: 7
+          if-no-files-found: ignore
