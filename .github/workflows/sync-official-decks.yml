@@ -37,7 +37,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: codex/community-decks
+          ref: master
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -72,7 +72,7 @@ jobs:
           VALIDATE_ONLY: ${{ inputs.validate_only || false }}
         run: |
           if [ "$VALIDATE_ONLY" = "true" ]; then
-            git push --dry-run origin HEAD:codex/community-decks
+            git push --dry-run origin HEAD:master
             exit 0
           fi
           git add -- lycee-japanese-database-final.json lycee-chinese-database-final.json data/catalog.json
@@ -82,7 +82,7 @@ jobs:
           fi
           git -c user.name="Inferno Dragon" -c user.email="196516294+Inferno-Dragon123@users.noreply.github.com" commit -m "chore: refresh card data and translations"
           # Fail on concurrent edits rather than overwriting another commit.
-          git push origin HEAD:codex/community-decks
+          git push origin HEAD:master
       - name: Save translation progress even after a partial failure
         if: always()
         uses: actions/cache/save@v4
@@ -110,7 +110,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           # Fetch the updated catalog after the card job has pushed its changes.
-          ref: codex/community-decks
+          ref: master
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -124,7 +124,7 @@ jobs:
         env:
           SYNC_LIMIT: ${{ inputs.limit || '100' }}
           SYNC_DAYS: ${{ inputs.days || '365' }}
-          DATABASE_URL_UNPOOLED: ${{ secrets.COMMUNITY_SYNC_DATABASE_URL }}
+          DATABASE_URL_UNPOOLED: ${{ secrets.PRODUCTION_SYNC_DATABASE_URL }}
       - name: Save sync report
         if: always()
         uses: actions/upload-artifact@v4

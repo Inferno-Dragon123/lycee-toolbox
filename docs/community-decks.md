@@ -1,5 +1,13 @@
 # 卡组社区开发与维护
 
+## 当前发布状态（2026-09-29）
+
+用户已授权合并到 `master`，并选择独立生产环境。生产使用现有 Neon `production` / `br-fancy-cloud-b4giop68`，已执行 001～004 迁移并启用独立 Auth；Vercel Production 使用该分支的数据库、Auth URL 和独立 Cookie 密钥。预览仍使用 `dev-community-decks`，账号与用户上传互相隔离。
+
+生产初始化仅复制 105 套官网卡组（104 个去重快照、2062 条卡号索引）及官网同步进度，没有复制预览账号、用户投稿或其他测试快照。正式域名已加入生产 Auth 可信域名；当前沿用 Neon 共享 SMTP，自有 SMTP、正式邮件投递与验证码体验仍待维护者配置和亲测。
+
+每日维护工作流改为 checkout/push `master`，官网同步使用新增的 `PRODUCTION_SYNC_DATABASE_URL`。原预览 Secret 保留，不再被正式定时任务使用。当前操作入口以 [README](../README.md) 为准；下方 2026-09-28 的接续记录保留作为历史，不能把其中「未合并／Production 未变」当作现状。
+
 当前实现：邮箱验证码登录、自定义昵称、主动公开发布、我的上传、名称/说明/卡牌编辑、下架/重新公开/删除、多卡推荐、独立预览、导入与恢复导入前草稿。浏览、预览和导入不要求登录。
 
 ## 数据与权限
@@ -75,11 +83,11 @@ npm run decks:sync -- --id k0PjKL --limit 1
 
 程序读取 robots.txt，遵循禁止路径及至少 10 秒间隔；失败不会删除已有卡组。只解析 `/deck/` 列表和 `/d/` 独立卡组，不访问被禁止的 `/card/deck_search.pl`，不解析官方博客中的多套配方文章。
 
-来源区分官网赛事、官网玩家，以及手动链接但未确认类别的官网卡组。详情校验逐卡数量及总张数，按卡号发现的结果还核验实际成员。未进入本地卡库的完整编号保留，预览提示缺卡。
+来源区分官网赛事、官网玩家；手动链接但未确认类别的卡组归入官网玩家，已确认的赛事不会被手动重抓降级。详情校验逐卡数量及总张数，按卡号发现的结果还核验实际成员。未进入本地卡库的完整编号保留，预览提示缺卡。
 
 数据库保存分页位置和待同步队列；每次先从首页发现新投稿，再继续历史页。已收录记录每 7 天允许重查；内容未变时不重建卡号索引。失败项目移到队尾并按 1 小时起、最多 7 天的退避重试。每天有界批次逐步增加覆盖，不能视为全站全量数据。直连连接的 advisory lock 防止并发同步。
 
-`.github/workflows/sync-official-decks.yml` 已在默认 master 分支启用每日北京时间 04:20 的维护与手动入口，先更新卡牌、补译并推送，再同步卡组。仓库 Secret `COMMUNITY_SYNC_DATABASE_URL` 使用社区开发库的 Neon **直连**地址，`DEEPSEEK_API_KEY` 用于卡牌补译。代码及数据仍 checkout/push `codex/community-decks`。运行状态见 [GitHub Actions](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/workflows/sync-official-decks.yml)。
+`.github/workflows/sync-official-decks.yml` 在默认 master 分支执行每日北京时间 04:20 的维护，先更新卡牌、补译并推送，再同步卡组。仓库 Secret `PRODUCTION_SYNC_DATABASE_URL` 使用生产库 Neon **直连**地址，`DEEPSEEK_API_KEY` 用于卡牌补译。代码及数据 checkout/push `master`。运行状态见 [GitHub Actions](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/workflows/sync-official-decks.yml)。
 
 ## 验证
 
