@@ -1,6 +1,15 @@
 name: Sync official decks
 on:
   workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Maximum decks to process (1-100)'
+        default: '100'
+        required: true
+      days:
+        description: 'Look back days; 0 includes all history'
+        default: '365'
+        required: true
   schedule:
     - cron: '20 20 * * *'
 permissions:
@@ -14,12 +23,28 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Keep the app on Preview while the scheduler lives on the default branch.
+          ref: codex/community-decks
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
-      - run: npm ci
-      - name: Incrementally sync official decks
-        run: npm run decks:sync -- --limit 60 --pages 3
+      - run: npm ci --no-audit --no-fund
         env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+      - name: Incrementally sync official decks
+        run: npm run decks:sync -- --limit "$SYNC_LIMIT" --days "$SYNC_DAYS" --pages 3
+        env:
+          SYNC_LIMIT: ${{ inputs.limit || '100' }}
+          SYNC_DAYS: ${{ inputs.days || '365' }}
           DATABASE_URL_UNPOOLED: ${{ secrets.COMMUNITY_SYNC_DATABASE_URL }}
+      - name: Save sync report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: official-deck-sync-report
+          path: temp/community/official-sync-report.json
+          retention-days: 7
+          if-no-files-found: ignore

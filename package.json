@@ -11,7 +11,12 @@
     "db:migrate": "node scripts/migrate.js",
     "catalog:build": "python scripts/build_catalog.py",
     "predev": "node scripts/build-frontend.js",
-    "decks:sync": "node scripts/sync-official-decks.js"
+    "decks:sync": "node scripts/sync-official-decks.js",
+    "update:full": "python scripts/update_and_translate.py --catalog",
+    "update:dry-run": "python scripts/update_and_translate.py --dry-run",
+    "update:translate-only": "python scripts/update_and_translate.py --skip-crawl",
+    "update:no-git": "python scripts/update_and_translate.py --catalog --no-git",
+    "test:update": "python -m unittest discover -s tests -p test_update_and_translate.py"
   },
   "keywords": [],
   "author": "",

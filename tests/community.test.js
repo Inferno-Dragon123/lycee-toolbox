@@ -65,6 +65,13 @@ test('SQL publication lifecycle preserves independent ownership, visibility, ver
         const official = { key: 'k0PjKL', source: 'official_user', deck: input.deck };
         const id = await upsertOfficial(official, db);
         assert.equal(await upsertOfficial(official, db), id);
+        assert.equal(await upsertOfficial({ ...official, source: 'official' }, db), id);
+        const synced = await getPublication(id, null, db);
+        assert.equal(synced.source, 'official_user');
+        assert.equal(synced.version, 1);
+        await upsertOfficial({ ...official, deck: { ...input.deck, name: '官网更新后的名称' } }, db);
+        assert.equal((await getPublication(id, null, db)).version, 2);
+        assert.equal((await pg.query('SELECT sum(quantity)::int n FROM toolbox_publication_cards WHERE publication_id = $1', [id])).rows[0].n, 60);
         await assert.rejects(updatePublication(alice, id, 1, 'delete', null, db), { status: 404 });
         assert.equal((await listPublications({ source: 'official_user' }, db)).items.length, 1);
         const combo = await createPublication(alice, publicationInput({ name: '双卡组合', cards: { 'LO-6826': 30, 'LO-0001': 30 } }), db);

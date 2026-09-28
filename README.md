@@ -4,6 +4,8 @@
 
 ## 当前改造状态
 
+2026-09-28 卡库维护：已接入并完善自动爬取/补译脚本，补齐 369 个中文卡面，中日文唯一编号均为 9,952。官网卡组同步增加重试退避、批量查询与运行报告，定时工作流及启用条件见社区维护文档。
+
 2026-09-28 后续：新增自定义昵称与最多 10 种卡牌的组合推荐（全部/任意包含），迁移 `003_profiles.sql` 已应用到社区开发分支。已通过相关 SQL/API 和轻量 UI 检查；容量实测、模拟假设和复查脚本见 [docs/storage-capacity.md](docs/storage-capacity.md)。持续预览入口：[功能分支测试版](https://lycee-toolbox-git-codex-community-decks-inferno-dragon.vercel.app)。正式站未切换。
 
 2026-09-28：卡组社区初版已完成本地验证，新增邮箱登录、主动发布和管理、按单卡推荐、预览导入及官网增量同步。使用独立 Neon 分支 `dev-community-decks`（`br-misty-pond-b48ax8kf`），迁移 `002_community.sql` 已应用。维护和接续入口见 [docs/community-decks.md](docs/community-decks.md)。下方 2026-09-25 记录属于上一阶段，不包含本次社区功能。
@@ -19,9 +21,9 @@ Git 推送已成功：功能分支 `codex/community-decks`，功能提交 `1f264
 ## 数据与请求链路
 
 - `lycee-japanese-database-final.json`：9,954 条日文记录，9,952 个唯一完整卡号。
-- `lycee-chinese-database-final.json`：9,585 条中文记录，9,583 个唯一完整卡号。**字段 `japaneseText` 实际保存中文译文**，保留现有格式。
+- `lycee-chinese-database-final.json`：9,954 条中文记录，9,952 个唯一完整卡号。**字段 `japaneseText` 实际保存中文译文**，保留现有格式。
 - `data/catalog.json`：官网结构化资料（名称、卡图、属性、费用、数值、类别、版本、稀有度、类型、画师及额外团队能力），9,952 个唯一卡号。
-- `lib/catalog.js`：服务端首次加载上述三份文件，按完整卡号合并并建立内存索引；命中中文库显示中文，未翻译的 369 张卡面显示日文，不在线调用 DeepSeek。
+- `lib/catalog.js`：服务端首次加载上述三份文件，按完整卡号合并并建立内存索引；当前 9,952 个卡面均已覆盖中文；以后新增但尚未翻译的卡面回退显示日文，不在线调用 DeepSeek。
 - 正式页面检索、组卡、TTS/PDF、分享链接均使用本站接口。卡图仍依赖 Lycee 官网。只有显式导入萌卡社旧链接时才调用其 `showDeck`。
 - 卡号按数字倒序，同编号无后缀在前、字母后缀升序。保留 `LO-0001A` 和 `LO-6826-A` 等来源中的完整写法，不根据数字缺号推测卡牌，不合并异画。
 - 两个最终库中已有的重复记录（`LO-2333`、`LO-0068A`）保留；运行时按完整 code 建 Map，后出现的记录优先。
@@ -114,6 +116,8 @@ npm run db:migrate
 Vercel 项目实际名称为 `lycee-toolbox`（本地关联文件中的旧名 `translate` 已刷新）。已配置 Preview 环境的敏感变量 `DATABASE_URL`，指向 Neon 开发分支；Production 尚未配置。Windows 本地 `vercel build` 遇到 CLI 启动 `cmd.exe` 的问题，已通过 Vercel 云端 Linux 构建验证，无需修改生产构建命令。
 
 ## 新卡与中文更新
+
+自动完整更新：`npm run update:full`；仅补历史缺译：`npm run update:translate-only`。默认不提交，完成审核后手动推送；详细选项、断点恢复和排序规则见 [更新与翻译脚本说明](scripts/README_update_and_translate.md)。下列命令仍可用于仅更新日文的场景。
 
 完整扫描并补入官网实际存在的新卡，同时更新检索元数据：
 
