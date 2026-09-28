@@ -79,7 +79,7 @@ npm run decks:sync -- --id k0PjKL --limit 1
 
 数据库保存分页位置和待同步队列；每次先从首页发现新投稿，再继续历史页。已收录记录每 7 天允许重查；内容未变时不重建卡号索引。失败项目移到队尾并按 1 小时起、最多 7 天的退避重试。每天有界批次逐步增加覆盖，不能视为全站全量数据。直连连接的 advisory lock 防止并发同步。
 
-`.github/workflows/sync-official-decks.yml` 提供每日任务与手动入口。需配置仓库 Secret `COMMUNITY_SYNC_DATABASE_URL` 为目标环境的 Neon **直连**地址。工作流已推送功能分支，尚未合并到默认分支，也未配置该 Secret，定时任务未启用。
+`.github/workflows/sync-official-decks.yml` 已在默认 master 分支启用每日北京时间 04:20 的维护与手动入口，先更新卡牌、补译并推送，再同步卡组。仓库 Secret `COMMUNITY_SYNC_DATABASE_URL` 使用社区开发库的 Neon **直连**地址，`DEEPSEEK_API_KEY` 用于卡牌补译。代码及数据仍 checkout/push `codex/community-decks`。运行状态见 [GitHub Actions](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/workflows/sync-official-decks.yml)。
 
 ## 验证
 
@@ -135,7 +135,7 @@ SQL 测试使用 PGlite，覆盖独立归属、匿名/跨用户拒绝、异画�
 - `scripts/README_update_and_translate.md` 为最新操作说明。默认不 Git 提交，`--push` 才提交；dry-run 不调用翻译 API。缓存与备份在被忽略的 temp/ 和 .json.bak 中。
 - 官网卡组同步按页批量查询已有编号，支持 `--days 0` 扩展到全部历史、请求临时失败重试、持久队列退避与 JSON 运行报告。默认仍是最近 365 天的独立 `/d/` 卡组（官网用户投稿及赛事），不把攻略文章当作独立卡组。
 - 工作流每日 UTC 20:20（北京时间次日 04:20），每次最多 100 卡组、3 个列表页；支持手动指定 limit/days，报告保留 7 天。新数据与重查逐日处理，不能把一个有界批次说成全站全量完成。
-- 预览阶段工作流明确 checkout `codex/community-decks`。GitHub 定时工作流必须存在于默认分支；已向用户说明仅把任务文件加入 master，并使用开发库 Secret，等待其选择是否启用。未确认前不修改默认分支或配置定时运行。
+- 预览阶段工作流明确 checkout `codex/community-decks`。当时尚在等待用户选择是否启用；本轮后续用户已要求设置每日任务，当前启用状态以下文“每日自动维护”为准。
 - 同时修复质量检查脚本全角术语漏检、异画能力子串重叠、翻译后的能力标记误报和空结果除零。本次 369 条新增译文通过术语/结构检查，报告在 `temp/lycee-official-update/alignment/quality-report.json`。
 - 已通过构建、14 项相关 JavaScript/SQL 测试、16 项原爬虫测试、10 项翻译/质量检查回归测试；未发送测试邮件。
 - 卡组同步操作：本地执行 `npm run decks:sync -- --limit 100 --pages 3`，使用社区开发库；每次结果保存到 `temp/community/official-sync-report.json`，数据库的 `toolbox_sync_state` 持续保存分页与待处理队列。中日文补译已结束，无后台翻译任务。
@@ -154,3 +154,10 @@ SQL 测试使用 PGlite，覆盖独立归属、匿名/跨用户拒绝、异画�
 - `004_merge_official_source.sql` 已在社区开发库执行：旧 `official` 来源归入 `official_user`，保留原卡组 ID、名称、链接、版本及时间。旧 API 查询 source=official 兼容为官网玩家，新写入不再创建单独的 official 类别，已识别赛事不会被手动重抓降级。
 - 公开卡组/推荐/我的上传共用的列表固定为 `min(560px, 65vh)` 高度，可滚动、键盘聚焦；分页按钮放在列表外，翻页和切换条件后重置滚动位置。
 - 验证：构建、5 项相关 SQL/API 测试；临时轻量浏览器检查桌面和 390px 手机，验证 20 项分页、列表滚动、翻页/筛选复位、来源合并和无横向溢出。未发送邮件。
+
+
+云端核验结果：工作流验证运行 [36424093665](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/runs/36424093665) 全部成功。cards 作业使用 validate_only 检查密钥存在、Linux 构建及 Git dry-run 推送权限，未重复爬取/付费翻译；sync 作业实际成功同步 1 个卡组、0 失败，持久队列余 80 个，第 3 页继续。完整卡牌抓取与翻译逻辑沿用上轮实际全库扫描和 369 卡补译验证，首次夜间 schedule 触发尚未发生。
+
+默认分支仅新增工作流文件（提交 `91e9151`），应用功能提交 `a660f2d` 保留在预览分支。该应用 Preview 已 READY，固定入口 https://lycee-toolbox-git-codex-community-decks-inferno-dragon.vercel.app 。云端旧 source=official 查询确认返回官网玩家，开发库旧 official 来源剩 0 条。后续正式上线需同时调整工作流 checkout/push 分支和数据库 Secret，不能只合并页面代码就删除预览分支。
+
+本阶段交接评估：实现、迁移、云端验证和发布均已收拢，无运行中的测试/爬虫，不需要新建接续线程。下一次在新增实质维护阶段或可靠压缩检查点再评估；没有可核验压缩次数，不推测计数。

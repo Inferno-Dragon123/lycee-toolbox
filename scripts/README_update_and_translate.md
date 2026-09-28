@@ -61,3 +61,10 @@ npm run build
 回归测试使用临时数据库和模拟 API，覆盖历史缺译、异画复用、断点重试、截断/费用符号保护、保留精翻、空效果及 dry-run 无 API 调用。
 
 DeepSeek 接口说明：https://api-docs.deepseek.com/api/create-chat-completion/
+
+
+## 云端定时运行
+
+GitHub Actions 的 `Daily card and deck maintenance` 已启用，每天 UTC 20:20（北京时间次日 04:20）先执行本脚本的 `--catalog --no-git`，再构建校验，仅在数据变化且校验成功时自动提交/推送三份卡牌 JSON 到预览分支。完成后继续官网卡组增量采集。手动触发入口在仓库 Actions 中，支持 all/cards/decks 范围。
+
+云端从 Secret 读取 DeepSeek 密钥，使用临时 GITHUB_TOKEN 推送。成功译文跨运行缓存，失败不推送部分数据库；报告保留 7 天。`validate_only` 只跳过卡牌抓取与翻译，卡组仍按 limit 实际同步。定时运行使用完整流程，GitHub 排队可能使实际启动略晚于计划时间。
