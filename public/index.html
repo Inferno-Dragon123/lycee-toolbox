@@ -300,7 +300,8 @@
                 <button class="btn btn-success" id="saveDeckBtn">💾 保存</button>
                 <button class="btn btn-success" id="publishDeckBtn">发布卡组</button>
                 <button class="btn btn-primary" id="exportTtsBtn" disabled>⬇ TTS</button>
-                <button class="btn btn-primary" id="exportPdfBtn" disabled>📄 PDF</button>
+                <button class="btn btn-primary" id="exportPdfBtn" disabled>📄 卡表 PDF</button>
+                <button class="btn btn-primary" id="exportPrintPdfBtn" disabled aria-describedby="printPdfHint">🖨 打印卡图 PDF</button>
                 <button class="btn btn-danger" id="clearDeckBtn">清空</button>
             </div>
 
@@ -310,6 +311,7 @@
             </div>
 
             <div class="flex-wrap" style="margin-top:8px"><button class="btn btn-outline" id="exportJsonBtn" disabled>导出卡组文件</button><button class="btn btn-outline" id="importJsonBtn">导入卡组文件</button><input id="deckFileInput" type="file" accept=".json" hidden></div>
+            <p id="printPdfHint" class="text-muted" style="margin-top:8px;font-size:0.85rem">打印卡图：A4 · 63×88 mm · 页边距 7 mm · 间距 1 mm · 每页 9 张。打印请选择“实际大小／100%”，关闭“适合页面”。</p>
             <p class="text-muted" style="margin-top:8px">编辑自动保留为本机草稿；点击保存可生成分享链接。</p>
             <button id="restoreBeforeImport" class="btn btn-outline btn-sm" style="margin-top:8px">恢复导入前草稿</button>
             <div id="shareInfo" class="share-box"></div>

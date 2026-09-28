@@ -117,6 +117,10 @@ npm run db:migrate
 
 Vercel 项目实际名称为 `lycee-toolbox`（本地关联文件中的旧名 `translate` 已刷新）。已配置 Preview 环境的敏感变量 `DATABASE_URL`，指向 Neon 开发分支；Production 尚未配置。Windows 本地 `vercel build` 遇到 CLI 启动 `cmd.exe` 的问题，已通过 Vercel 云端 Linux 构建验证，无需修改生产构建命令。
 
+## 打印卡图 PDF
+
+组卡区的「打印卡图 PDF」按实际数量导出 A4 卡面排版：63 × 88 mm、7 mm 安全边距、1 mm 间距，每页 9 张。打印请选择「实际大小／100%」。原有「卡表 PDF」继续保留；实现、边距说明及验证记录见 [打印功能说明](docs/print-pdf.md)。
+
 ## 新卡与中文更新
 
 自动完整更新：`npm run update:full`；仅补历史缺译：`npm run update:translate-only`。默认不提交，完成审核后手动推送；详细选项、断点恢复和排序规则见 [更新与翻译脚本说明](scripts/README_update_and_translate.md)。下列命令仍可用于仅更新日文的场景。

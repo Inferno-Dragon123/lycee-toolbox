@@ -6,6 +6,7 @@ const info = new Map();
 const DRAFT_KEY = 'lycee-toolbox:draft:v1';
 let deck = {}, revision = 0, searchPage = 1, searchPages = 0, searchSerial = 0, loadSerial = 0;
 let searchParams = new URLSearchParams();
+let printExporting = false;
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const total = () => Object.values(deck).reduce((a, b) => a + b, 0);
 function status(message, error = false) {
@@ -51,6 +52,7 @@ function updateCounts() {
 function renderDeck() {
     $('deckTotal').textContent = `${total()} 张`;
     for (const id of ['exportTtsBtn', 'exportPdfBtn', 'exportJsonBtn']) $(id).disabled = !total();
+    $('exportPrintPdfBtn').disabled = printExporting || !total();
     $('deckArea').innerHTML = Object.keys(deck).sort(compareCodes).map(code => `
         <div class="deck-item">
             <span class="d-code">${escapeHtml(code)}</span>
@@ -180,6 +182,26 @@ async function exportPdf() {
     finally { $('exportPdfBtn').disabled = !total(); }
 }
 
+async function exportPrintPdf() {
+    if (printExporting) return;
+    printExporting = true;
+    $('exportPrintPdfBtn').disabled = true;
+    try {
+        const data = snapshot();
+        status('正在准备打印卡图…');
+        const [{ createPrintPdf }, result] = await Promise.all([
+            import('./print-pdf.bundle.js'),
+            request('/api/cards?' + new URLSearchParams({ codes: Object.keys(data.cards).join(',') }))
+        ]);
+        const output = await createPrintPdf(data, result.cards, {
+            onProgress: (done, count) => status(`正在准备打印卡图 ${done}/${count}…`)
+        });
+        download(output.blob, filename(data.name) + '-打印卡图.pdf');
+        status(`打印 PDF 已导出：${output.count} 张卡，${output.pages} 页。请用 A4 纸，选择“实际大小／100%”打印。`);
+    } catch (e) { status(e.message || '打印 PDF 导出失败，请重试', true); }
+    finally { printExporting = false; $('exportPrintPdfBtn').disabled = !total(); }
+}
+
 for (const id of ['searchResultArea', 'deckArea']) $(id).addEventListener('click', e => {
     const button = e.target.closest('button[data-delta]');
     if (button) modify(button.dataset.code, Number(button.dataset.delta));
@@ -209,6 +231,7 @@ $('restoreBeforeImport').addEventListener('click', async () => {
 $('loadDeckBtn').addEventListener('click', () => loadReference($('loadDeckInput').value));
 $('loadDeckInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('loadDeckBtn').click(); });
 $('exportPdfBtn').addEventListener('click', exportPdf);
+$('exportPrintPdfBtn').addEventListener('click', exportPrintPdf);
 $('exportTtsBtn').addEventListener('click', () => {
     try { const data = snapshot(); download(new Blob([JSON.stringify(makeTts(data, info), null, 2)], { type: 'application/json' }), filename(data.name) + '-tts.json'); status('TTS 文件已导出'); }
     catch (e) { status(e.message, true); }
