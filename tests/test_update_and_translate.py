@@ -124,5 +124,19 @@ class PipelineTests(unittest.TestCase):
             self.assertFalse(bad)
             api.assert_not_called()
 
+    def test_automation_can_publish_japanese_fallback_after_permanent_api_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); jp = root / 'jp.json'; zh = root / 'zh.json'
+            u.save_json(jp, {'cards': [card('LO-0002'), card('LO-0001')], 'totalCards': 2})
+            u.save_json(zh, {'cards': [card('LO-0001', '已有中文')], 'totalCards': 1})
+            with patch.multiple(u, DATABASE=jp, CHINESE_DATABASE=zh, WORK=root / 'work'), \
+                    patch.object(u, 'translate_cards', side_effect=u.PermanentAPIError('DeepSeek HTTP 402')):
+                result = u.main(['--skip-crawl', '--allow-missing-translations'])
+            self.assertEqual(result, 0)
+            report = u.load_json(root / 'work' / 'alignment' / 'report.json')
+            self.assertEqual(report['missingChinese'], ['LO-0002'])
+            self.assertEqual(report['failures'][0]['error'], 'DeepSeek HTTP 402')
+            self.assertEqual(u.load_json(zh)['totalCards'], 1)
+
 if __name__ == '__main__':
     unittest.main()

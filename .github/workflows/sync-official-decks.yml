@@ -63,8 +63,22 @@ jobs:
           if [ "$VALIDATE_ONLY" = "true" ]; then
             python scripts/update_and_translate.py --skip-crawl --dry-run --no-git
           else
-            python scripts/update_and_translate.py --catalog --no-git
+            # Card data remains publishable with Japanese fallback when the
+            # optional translation provider is unavailable (for example 402).
+            python scripts/update_and_translate.py --catalog --no-git --allow-missing-translations
           fi
+      - name: Report deferred translations
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = Path('temp/lycee-official-update/alignment/report.json')
+          if report.exists():
+              missing = json.loads(report.read_text())['missingChinese']
+              if missing:
+                  print(f'::warning title=Chinese translation deferred::{len(missing)} cards use Japanese fallback: {", ".join(missing[:20])}')
+          PY
       - name: Validate generated catalog
         run: npm run build
       - name: Commit and push changed card data

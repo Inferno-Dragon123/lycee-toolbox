@@ -254,7 +254,7 @@ def git_commit_and_push(files, message):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    for flag in ('resume', 'dry-run', 'skip-crawl', 'no-git', 'push', 'catalog'):
+    for flag in ('resume', 'dry-run', 'skip-crawl', 'no-git', 'push', 'catalog', 'allow-missing-translations'):
         parser.add_argument('--' + flag, action='store_true')
     parser.add_argument('--env-file', type=Path, default=ROOT / '.env')
     parser.add_argument('--workers', type=int, default=2)
@@ -297,15 +297,28 @@ def main(argv=None):
         return 0
     # Detect edits made while long-running translation requests were in flight.
     before = {p: p.read_bytes() for p in (DATABASE, CHINESE_DATABASE) if p.exists()}
-    translated, failed = translate_cards(missing, os.environ.get('DEEPSEEK_API_KEY'), work_dir, args.workers, reuse)
+    try:
+        translated, failed = translate_cards(missing, os.environ.get('DEEPSEEK_API_KEY'), work_dir, args.workers, reuse)
+    except PermanentAPIError as exc:
+        if not args.allow_missing_translations:
+            raise
+        translated = []
+        failed = [{'code': card['code'], 'error': str(exc)} for card in missing]
+        save_json(work_dir / 'translation-result.json', {'translatedAt': now_iso(),
+            'successful': 0, 'failed': len(failed), 'cards': [], 'failures': failed})
     if any(p.read_bytes() != contents for p, contents in before.items()):
         raise ValueError('Database changed during translation; rerun to reuse the cached results')
     merge_chinese_database(translated)
     alignment = align_databases()
     save_json(work_dir / 'report.json', dict(alignment, checkedAt=now_iso(), failures=failed))
     print(json.dumps(alignment, ensure_ascii=False), flush=True)
-    if failed or alignment['missingChinese'] or alignment['chineseOnly']:
+    if alignment['chineseOnly']:
         return 1
+    if failed or alignment['missingChinese']:
+        if not args.allow_missing_translations:
+            return 1
+        print(f'Translations deferred for {len(alignment["missingChinese"])} cards; '
+              'Japanese text will be used until a later run succeeds.', file=sys.stderr, flush=True)
     if args.push:
         git_commit_and_push([DATABASE, CHINESE_DATABASE, ROOT / 'data/catalog.json'],
                             f'feat: align card databases (+{len(translated)} translated cards)')

@@ -125,7 +125,7 @@ node --env-file=.env.production scripts/migrate.js
 工作流为 [Daily card and deck maintenance](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/workflows/sync-official-decks.yml)，北京时间 04:20（UTC 20:20）计划运行，GitHub 实际启动可能延后。
 
 1. 从 `master` 读取代码，扫描官网、补齐中文、重建 catalog，并构建校验。
-2. 仅有变化时提交三份 JSON 到 `master`，由 Vercel 自动部署；并发推送冲突直接失败，不强制覆盖。
+2. 仅有变化时提交三份 JSON 到 `master`，由 Vercel 自动部署；并发推送冲突直接失败，不强制覆盖。DeepSeek 不可用时仍发布新卡日文与目录，页面回退日文，并在后续运行继续补译。
 3. 向生产库同步最近 365 天的官网独立卡组，每次最多 100 套、3 个列表页，保存进度与失败重试队列。卡牌更新失败时不提交部分结果，卡组作业仍可处理现有资料。
 
 GitHub 仓库 Secrets：`DEEPSEEK_API_KEY` 用于补译，`PRODUCTION_SYNC_DATABASE_URL` 为生产库直连。旧 `COMMUNITY_SYNC_DATABASE_URL` 保留给预览维护，正式定时任务不再使用。工作流支持手动选择 all/cards/decks；`validate_only` 只跳过卡牌实际抓取和翻译，卡组作业仍按所选数量实际同步。
