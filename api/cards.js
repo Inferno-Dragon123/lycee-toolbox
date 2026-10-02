@@ -1,4 +1,4 @@
-import { facets, hydrate, search, cards } from '../lib/catalog.js';
+import { facets, abilityFacets, hydrate, search, cards } from '../lib/catalog.js';
 import { normalizeCode, CODE } from '../public/deck-format.js';
 import { method, fail } from '../lib/http.js';
 
@@ -7,7 +7,7 @@ export default function handler(req, res) {
     try {
         const params = new URL(req.url, 'http://localhost').searchParams;
         let result;
-        if (params.get('facets') === '1') result = { facets, total: cards.length };
+        if (params.get('facets') === '1') result = { facets, abilityFacets, total: cards.length };
         else if (params.has('codes')) {
             const codes = [...new Set(params.get('codes').split(',').map(normalizeCode))];
             if (codes.length > 200 || codes.some(c => !CODE.test(c))) throw Object.assign(new Error('无效的卡号列表'), { status: 400 });

@@ -1,5 +1,6 @@
 import { validateDeck, compareCodes, parseDeckReference, makeTts } from './deck-format.js';
 import { initCommunity } from './community.bundle.js';
+import { initSearchFilters } from './search-filters.js';
 
 const $ = id => document.getElementById(id);
 const info = new Map();
@@ -7,6 +8,7 @@ const DRAFT_KEY = 'lycee-toolbox:draft:v1';
 let deck = {}, revision = 0, searchPage = 1, searchPages = 0, searchSerial = 0, loadSerial = 0;
 let searchParams = new URLSearchParams();
 let printExporting = false;
+let searchFilters;
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const total = () => Object.values(deck).reduce((a, b) => a + b, 0);
 function status(message, error = false) {
@@ -93,8 +95,7 @@ function renderResults(cards) {
 }
 async function performSearch(page = 1, newSearch = true) {
     if (newSearch) {
-        searchParams = new URLSearchParams();
-        for (const field of $('filterForm').querySelectorAll('[data-key]')) if (field.value.trim()) searchParams.set(field.dataset.key, field.value.trim());
+        searchParams = searchFilters.getParams();
     }
     const serial = ++searchSerial;
     const params = new URLSearchParams(searchParams);
@@ -104,6 +105,7 @@ async function performSearch(page = 1, newSearch = true) {
     try {
         const data = await request(`/api/cards?${params}`);
         if (serial !== searchSerial) return;
+        searchFilters.markApplied(searchParams);
         remember(data.cards); renderResults(data.cards);
         searchPage = data.page; searchPages = data.pages;
         $('resultCount').textContent = `共 ${data.total} 张`;
@@ -113,18 +115,9 @@ async function performSearch(page = 1, newSearch = true) {
         status(`找到 ${data.total} 张卡牌`);
     } catch (e) { if (serial === searchSerial) status(`搜索失败：${e.message}`, true); }
 }
-function field(key, label, options) {
-    const id = 'field_' + key;
-    return `<div class="filter-item"><label for="${id}">${label}</label>${options ?
-        `<select id="${id}" data-key="${key}"><option value="">全部</option>${options.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('')}</select>` :
-        `<input id="${id}" data-key="${key}" type="${/_(min|max)$/.test(key) ? 'number' : 'text'}" ${/_(min|max)$/.test(key) ? 'min="0" max="100"' : 'maxlength="200"'} placeholder="${label}">`}</div>`;
-}
 async function loadFilters() {
     const data = await request('/api/cards?facets=1');
-    $('filterForm').innerHTML = field('q', '关键词（中日文）') + field('code', '卡号') +
-        field('attribute', '属性（包含）', [...'雪月花宙日'].map(a => ({ value: a, label: a }))) +
-        data.facets.map(f => field(f.key, f.label, f.options)).join('') + field('effect', '效果关键词') + field('trait', '类型关键词') + field('illustrator', '画师') +
-        [['costTotal', '费用'], ['ap', 'AP'], ['dp', 'DP'], ['sp', 'SP'], ['dmg', 'DMG']].map(([key, label]) => field(`${key}_min`, `${label} 下限`) + field(`${key}_max`, `${label} 上限`)).join('');
+    searchFilters = initSearchFilters($('filterForm'), $('selectedFilters'), data);
 }
 async function applyDeck(input, cardInfo, expectedRevision, serial) {
     const next = validateDeck(input);
@@ -207,9 +200,9 @@ for (const id of ['searchResultArea', 'deckArea']) $(id).addEventListener('click
     if (button) modify(button.dataset.code, Number(button.dataset.delta));
 });
 $('searchBtn').addEventListener('click', () => performSearch());
-$('filterForm').addEventListener('keydown', e => { if (e.key === 'Enter') performSearch(); });
+$('filterForm').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input')) performSearch(); });
 $('clearSearchBtn').addEventListener('click', () => {
-    for (const field of $('filterForm').querySelectorAll('[data-key]')) field.value = '';
+    searchFilters?.clear();
     performSearch();
 });
 $('prevPage').addEventListener('click', () => performSearch(searchPage - 1, false));

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lycee Overture工具箱</title>
     <link rel="stylesheet" href="/community.css">
+    <link rel="stylesheet" href="/search-filters.css">
     <style>
         * { box-sizing: border-box; margin: 0; }
         body {
@@ -273,6 +274,8 @@
             <div id="filterForm" class="filter-grid">
                 <div class="loading-shimmer">⏳ 加载筛选选项...</div>
             </div>
+            <p class="text-muted filter-rules">同一筛选项多选满足任一，不同筛选项同时满足。选好后点击“搜索”应用。</p>
+            <div id="selectedFilters" class="selected-filters" aria-label="已选筛选条件"></div>
             <div class="flex-wrap">
                 <button class="btn btn-primary" id="searchBtn">搜索</button>
                 <button class="btn btn-outline" id="clearSearchBtn">清空条件</button>
