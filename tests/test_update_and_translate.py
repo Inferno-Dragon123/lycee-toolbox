@@ -92,6 +92,22 @@ class PipelineTests(unittest.TestCase):
             self.assertTrue(path.read_bytes().startswith(b'{\r\n "cards"'))
             self.assertEqual(u.load_json(path.with_suffix('.json.bak'))['cards'], original)
 
+    def test_translation_dates_survive_cache_and_reused_card_faces(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(u.time, 'sleep'):
+            original = card('LO-0001')
+            with patch.object(u, 'call_deepseek', return_value='译文'), patch.object(u, 'now_iso', return_value='2026-09-28T00:00:00Z'):
+                good, _ = u.translate_cards([original], 'fake', Path(tmp))
+            self.assertEqual(good[0]['translatedAt'], '2026-09-28T00:00:00Z')
+            with patch.object(u, 'call_deepseek') as api, patch.object(u, 'now_iso', return_value='2026-10-03T00:00:00Z'):
+                cached, _ = u.translate_cards([original], 'fake', Path(tmp))
+                key = u.translation_key(original)
+                reused, _ = u.translate_cards([original], 'fake', Path(tmp), reuse={key: '译文'}, reuse_dates={key: good[0]['translatedAt']})
+                legacy, _ = u.translate_cards([original], 'fake', Path(tmp), reuse={key: '旧译文'})
+                api.assert_not_called()
+            self.assertEqual(cached[0]['translatedAt'], good[0]['translatedAt'])
+            self.assertEqual(reused[0]['translatedAt'], good[0]['translatedAt'])
+            self.assertNotIn('translatedAt', legacy[0])
+
     def test_skip_crawl_finds_historical_missing_without_latest_report(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(u.time, 'sleep'):
             root = Path(tmp); jp = root / 'jp.json'; zh = root / 'zh.json'

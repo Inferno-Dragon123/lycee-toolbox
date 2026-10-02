@@ -284,7 +284,18 @@
             <div id="searchResultArea" class="search-result-list" style="margin-top:12px;">
                 <div class="text-muted" style="text-align:center; padding:30px; width:100%;">加载筛选条件后，输入关键词搜索</div>
             </div>
-            <div class="flex-wrap" style="margin-top:12px"><button id="prevPage" class="btn btn-outline" disabled>上一页</button><span id="pageInfo" class="text-muted"></span><button id="nextPage" class="btn btn-outline" disabled>下一页</button></div>
+            <div class="flex-wrap search-pagination" aria-label="检索结果分页">
+                <button id="prevPage" class="btn btn-outline" disabled>上一页</button>
+                <span id="pageInfo" class="text-muted" aria-live="polite"></span>
+                <button id="nextPage" class="btn btn-outline" disabled>下一页</button>
+                <button id="lastPage" class="btn btn-outline" disabled>最后一页</button>
+                <form id="pageJumpForm" class="flex-wrap" novalidate>
+                    <label for="pageJumpInput" class="text-muted">跳至</label>
+                    <input id="pageJumpInput" type="number" inputmode="numeric" min="1" step="1" aria-label="指定页码" disabled>
+                    <span class="text-muted">页</span>
+                    <button id="pageJumpBtn" class="btn btn-outline" type="submit" disabled>跳转</button>
+                </form>
+            </div>
         </div>
 
         <!-- 右栏：卡组管理 -->

@@ -1,12 +1,12 @@
 # Lycee Overture 工具箱
 
-[正式站点](https://lycee-toolbox.top/) · [功能预览](https://lycee-toolbox-git-codex-community-decks-inferno-dragon.vercel.app)
+[正式站点](https://lycee-toolbox.top/) · [功能预览](https://lycee-toolbox-git-codex-search-filters-inferno-dragon.vercel.app/)
 
 日式卡牌 Lycee Overture 的中文检索、组卡与卡组交流工具。前端为 HTML/JavaScript，API 部署在 Vercel；卡牌资料来自仓库 JSON，云端卡组与账号使用 Neon PostgreSQL / Neon Auth。
 
 ## 功能
 
-本分支包含待审核的 [多选检索与基本能力筛选](docs/search-filters.md)。预览分支为 `codex/search-filters`，用户人工审核通过后再合并到正式分支。
+本分支包含待审核的 [多选检索与基本能力筛选](docs/search-filters.md)，相同日文能力形式统一显示较新译文，支持指定页跳转和最后一页。预览分支为 `codex/search-filters`，用户人工审核通过后再合并到正式分支。
 
 - **卡牌检索**：中日文关键词、完整卡号、属性、类别、稀有度、版本、费用与数值筛选。预制中文译文覆盖日文效果，新卡缺译时回退日文，无需在线翻译。
 - **组卡与分享**：本机草稿自动保存、官网卡组链接导入、本站分享链接、卡组 JSON 导入导出、TTS 导出。

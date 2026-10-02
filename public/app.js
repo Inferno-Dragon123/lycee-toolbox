@@ -7,6 +7,7 @@ const info = new Map();
 const DRAFT_KEY = 'lycee-toolbox:draft:v1';
 let deck = {}, revision = 0, searchPage = 1, searchPages = 0, searchSerial = 0, loadSerial = 0;
 let searchParams = new URLSearchParams();
+let searchLoading = false;
 let printExporting = false;
 let searchFilters;
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -93,27 +94,34 @@ function renderResults(cards) {
     }).join('') || '<div class="text-muted" style="padding:24px;text-align:center">未找到卡牌</div>';
     $('searchResultArea').scrollTop = 0;
 }
+function updateSearchPagination() {
+    $('prevPage').disabled = searchLoading || !searchPages || searchPage <= 1;
+    $('nextPage').disabled = $('lastPage').disabled = searchLoading || !searchPages || searchPage >= searchPages;
+    $('pageJumpInput').disabled = $('pageJumpBtn').disabled = searchLoading || !searchPages;
+    $('pageJumpInput').max = searchPages || 1;
+}
 async function performSearch(page = 1, newSearch = true) {
-    if (newSearch) {
-        searchParams = searchFilters.getParams();
-    }
+    const requestedFilters = newSearch ? searchFilters.getParams() : searchParams;
     const serial = ++searchSerial;
-    const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams(requestedFilters);
     params.set('page', page);
     status('搜索中…');
-    $('prevPage').disabled = $('nextPage').disabled = true;
+    searchLoading = true;
+    updateSearchPagination();
     try {
         const data = await request(`/api/cards?${params}`);
         if (serial !== searchSerial) return;
+        searchParams = requestedFilters;
         searchFilters.markApplied(searchParams);
         remember(data.cards); renderResults(data.cards);
         searchPage = data.page; searchPages = data.pages;
         $('resultCount').textContent = `共 ${data.total} 张`;
         $('pageInfo').textContent = searchPages ? `${searchPage} / ${searchPages} 页` : '0 页';
-        $('prevPage').disabled = searchPage <= 1;
-        $('nextPage').disabled = searchPage >= searchPages;
+        $('pageJumpInput').value = searchPages ? searchPage : '';
+        $('pageJumpInput').setCustomValidity('');
         status(`找到 ${data.total} 张卡牌`);
     } catch (e) { if (serial === searchSerial) status(`搜索失败：${e.message}`, true); }
+    finally { if (serial === searchSerial) { searchLoading = false; updateSearchPagination(); } }
 }
 async function loadFilters() {
     const data = await request('/api/cards?facets=1');
@@ -207,6 +215,19 @@ $('clearSearchBtn').addEventListener('click', () => {
 });
 $('prevPage').addEventListener('click', () => performSearch(searchPage - 1, false));
 $('nextPage').addEventListener('click', () => performSearch(searchPage + 1, false));
+$('lastPage').addEventListener('click', () => performSearch(searchPages, false));
+$('pageJumpInput').addEventListener('input', () => $('pageJumpInput').setCustomValidity(''));
+$('pageJumpForm').addEventListener('submit', e => {
+    e.preventDefault();
+    if (searchLoading || !searchPages) return;
+    const input = $('pageJumpInput'), raw = input.value.trim(), page = Number(raw);
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(page) || page < 1 || page > searchPages) {
+        input.setCustomValidity(`请输入 1～${searchPages} 之间的整数页码`);
+        input.reportValidity();
+        return;
+    }
+    if (page !== searchPage) performSearch(page, false);
+});
 $('deckNameInput').addEventListener('input', changed);
 $('clearDeckBtn').addEventListener('click', () => { deck = {}; $('deckNameInput').value = ''; changed(); status('卡组已清空'); });
 $('saveDeckBtn').addEventListener('click', save);

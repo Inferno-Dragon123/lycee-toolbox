@@ -151,7 +151,7 @@ def translation_key(card):
         os.environ.get('DEEPSEEK_MODEL', DEEPSEEK_MODEL), 2], ensure_ascii=False).encode('utf-8')).hexdigest()
 
 
-def translate_cards(new_cards, api_key, work_dir, workers=1, reuse=None):
+def translate_cards(new_cards, api_key, work_dir, workers=1, reuse=None, reuse_dates=None):
     """Checkpoint each text group; identical variants keep their own code/name/cid."""
     cache_dir = work_dir / 'translation-cache'
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -159,25 +159,32 @@ def translate_cards(new_cards, api_key, work_dir, workers=1, reuse=None):
     for card in new_cards:
         groups[translation_key(card)].append(card)
     reuse = reuse or {}
+    reuse_dates = reuse_dates or {}
 
     def translate_group(item):
         key, cards = item
         original = cards[0]['japaneseText'] or ''
         cache_file = cache_dir / (key + '.json')
         try:
+            translated_at = now_iso()
             if not original.strip():
                 text = ''  # A card with no effect still needs a matching Chinese record.
             elif key in reuse:
                 text = reuse[key]
+                # Copying an old translation to another card face isn't a new translation.
+                translated_at = reuse_dates.get(key)
             elif cache_file.exists():
-                text = validate_translation(original, load_json(cache_file)['text'])
+                cached = load_json(cache_file)
+                text = validate_translation(original, cached['text'])
+                translated_at = cached.get('translatedAt')
             else:
                 if not api_key:
                     raise PermanentAPIError('DEEPSEEK_API_KEY is required for missing translations')
                 text = call_deepseek(original, api_key)
-                save_json(cache_file, {'text': text, 'sourceHash': key, 'translatedAt': now_iso()})
+                translated_at = now_iso()
+                save_json(cache_file, {'text': text, 'sourceHash': key, 'translatedAt': translated_at})
                 time.sleep(1)
-            return [dict(c, japaneseText=text) for c in cards], []
+            return [dict(c, japaneseText=text, **({'translatedAt': translated_at} if translated_at else {})) for c in cards], []
         except PermanentAPIError:
             raise
         except Exception as exc:
@@ -285,9 +292,14 @@ def main(argv=None):
     existing = {c['code']: c for c in zh['cards']}
     missing = sorted([c for code, c in originals.items() if code not in existing], key=sort_key)
     reuse_values = defaultdict(set)
+    reuse_dates = {}
     for code, card in existing.items():
         if code in originals and card.get('japaneseText'):
             reuse_values[translation_key(originals[code])].add(card['japaneseText'])
+            key = translation_key(originals[code])
+            date = card.get('translatedAt')
+            if date and (not reuse_dates.get(key) or date > reuse_dates[key]):
+                reuse_dates[key] = date
     reuse = {key: next(iter(values)) for key, values in reuse_values.items() if len(values) == 1}
     print(f'Missing Chinese: {len(missing)} cards, {len({translation_key(c) for c in missing})} text groups', flush=True)
     work_dir = WORK / 'alignment'
@@ -298,7 +310,7 @@ def main(argv=None):
     # Detect edits made while long-running translation requests were in flight.
     before = {p: p.read_bytes() for p in (DATABASE, CHINESE_DATABASE) if p.exists()}
     try:
-        translated, failed = translate_cards(missing, os.environ.get('DEEPSEEK_API_KEY'), work_dir, args.workers, reuse)
+        translated, failed = translate_cards(missing, os.environ.get('DEEPSEEK_API_KEY'), work_dir, args.workers, reuse, reuse_dates)
     except PermanentAPIError as exc:
         if not args.allow_missing_translations:
             raise

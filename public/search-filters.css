@@ -32,6 +32,8 @@
 .ability-row small { display: block; color: #5b738f; font-size: .7rem; overflow-wrap: anywhere; }
 .ability-row.is-active button { background: #eef4fc; color: #164f94; }
 .ability-count { position: absolute; right: 4px; top: 9px; color: #2a7de1; font-size: .7rem; }
+.search-pagination { margin-top: 12px; }
+#pageJumpInput { width: 72px; min-width: 0; padding: 8px; border: 1px solid #ccd7e6; border-radius: 8px; }
 @media (max-width: 600px) {
     .ability-cascade { grid-template-columns: minmax(115px, .8fr) minmax(0, 1.3fr); }
     .filter-popup { padding: 8px; }
