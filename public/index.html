@@ -349,6 +349,7 @@
             <div class="flex-wrap"><strong>已选卡牌 <span id="recommendCount">0 / 10</span></strong><button id="clearRecommendations" class="btn btn-outline btn-sm">清空选择</button></div>
             <div id="selectedRecommendations" class="flex-wrap" style="margin:10px 0"></div>
             <form id="recommendForm" class="flex-wrap"><input id="recommendCodesInput" placeholder="输入卡号，多个用逗号分隔" aria-label="添加检索卡号" maxlength="200"><button class="btn btn-outline">添加卡号</button></form>
+            <div class="community-selected-filter-bar"><strong>已选筛选条件</strong><div id="communitySelectedFilters" class="flex-wrap" role="group" aria-label="已选卡组筛选条件"></div><p id="communitySelectedFiltersHint" class="text-muted"></p></div>
             <div class="flex-wrap community-search-actions"><label>匹配方式 <select id="recommendMatch"><option value="all">同时包含全部所选卡牌</option><option value="any">包含任意一张所选卡牌</option></select></label><button id="showRecommendations" class="btn btn-primary">检索</button><button id="communityClearFilters" class="btn btn-outline">清空条件</button></div>
         </div>
         <div class="flex-wrap community-toolbar"><h2 id="communityHeading">公开卡组检索结果</h2><button id="communityRefresh" class="btn btn-outline">刷新结果</button></div>

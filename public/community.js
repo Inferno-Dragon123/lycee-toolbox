@@ -29,6 +29,29 @@ export async function initCommunity(editor) {
     function updateFilterState() {
         try { $('communityFilterState').textContent = readFilters(false).toString() === appliedFilters.toString() ? '已应用' : '待检索'; }
         catch { $('communityFilterState').textContent = '待检索'; }
+        renderSelectedFilters();
+        $('communitySelectedFiltersHint').textContent = $('communityFilterState').textContent === '待检索'
+            ? '条件已修改，点击“检索”应用；翻页和刷新仍使用上次检索条件。'
+            : '当前结果使用以下条件；点击 × 移除后，再点击“检索”应用。';
+    }
+    function renderSelectedFilters() {
+        const chips = [];
+        const chip = (name, value, label) => chips.push(`<button type="button" class="community-filter-chip" data-remove-community-filter="${escape(name)}" data-value="${escape(value)}" aria-label="移除${escape(label)}">${escape(label)}<span aria-hidden="true">×</span></button>`);
+        const source = $('communitySource');
+        if (source.value) chip('source', source.value, `来源：${source.selectedOptions[0].textContent}`);
+        for (const state of filters.values()) {
+            for (const option of state.options) if (state.selected.has(option.value)) chip(state.name, option.value, `${state.label}：${option.label}`);
+        }
+        for (const attribute of attributes) {
+            const lower = $(`communityAttr${attribute}min`).value.trim(), upper = $(`communityAttr${attribute}max`).value.trim();
+            if (lower || upper) chip('range', attribute, `${attribute}数量：${lower || '不限'}～${upper || '不限'}`);
+        }
+        for (const code of selected) chip('code', code, `卡牌：${code}`);
+        if (selected.length) {
+            if ($('recommendMatch').value === 'any') chip('match', 'any', '匹配方式：任意包含');
+            else chips.push('<span class="community-filter-chip community-filter-chip-static">匹配方式：全部包含</span>');
+        }
+        $('communitySelectedFilters').innerHTML = chips.join('') || '<span class="text-muted">暂无筛选条件</span>';
     }
     function multiSelect(id, name, label, options) {
         const host = $(id), state = { name, label, options, selected: new Set(), host };
@@ -119,6 +142,16 @@ export async function initCommunity(editor) {
         const counts = composition.attributesKnown === false ? '<span>属性资料不全</span>' : attributes.map(attribute => `<span>${attribute}：${Number(composition.counts?.[attribute]) || 0}</span>`).join('');
         return `<div class="community-composition"><strong>[${type}${series}]</strong>${counts}</div>`;
     }
+    function titleMarkup(item) {
+        let officialUrl = null;
+        if (item.source !== 'community' && item.source_url) {
+            try {
+                const url = new URL(item.source_url);
+                if (url.protocol === 'https:' && url.hostname === 'lycee-tcg.com' && !url.username && !url.password) officialUrl = url.href;
+            } catch { /* Invalid source links fall back to the local preview. */ }
+        }
+        return `<a class="community-title" href="${escape(officialUrl || ownLink(item.id))}"${officialUrl ? ' target="_blank" rel="noopener noreferrer"' : ''}>${escape(item.name)}</a>`;
+    }
     function showAccount() {
         $('accountLabel').textContent = user ? `已登录：${profile?.displayName || '玩家'}` : '未登录';
         $('profileBtn').hidden = !user;
@@ -141,12 +174,11 @@ export async function initCommunity(editor) {
             $('browseDecksBtn').className = 'btn ' + (mode === 'public' ? 'btn-primary' : 'btn-outline');
             $('myUploadsBtn').className = 'btn ' + (mode === 'mine' ? 'btn-primary' : 'btn-outline');
             $('communityResults').innerHTML = items.map(item => `<article class="community-item" data-publication="${item.id}">
-                <div><a class="community-title" href="${ownLink(item.id)}">${escape(item.name)}</a>
+                <div>${titleMarkup(item)}
                 <p class="text-muted">${escape(sourceLabels[item.source])} · ${escape(item.author_name)}${item.author_tag && item.author_tag !== item.author_name ? `（${escape(item.author_tag)}）` : ''} · ${new Date(item.updated_at).toLocaleDateString('zh-CN')}${item.status !== 'public' ? ' · 已下架' : ''}${item.moderated ? ' · 管理员下架' : ''}</p>
                 ${compositionMarkup(item.composition)}
                 ${item.description ? `<p class="community-description">${escape(item.description)}</p>` : ''}</div>
-                <div class="flex-wrap"><a href="${escape(item.source_url || ownLink(item.id))}" target="_blank" rel="noopener">${item.source_url ? '官网原链接' : '卡组链接'}</a>
-                <button class="btn btn-outline" data-action="preview">预览</button><button class="btn btn-primary" data-action="import">导入卡组</button>
+                <div class="flex-wrap"><button class="btn btn-outline" data-action="preview">预览</button><button class="btn btn-primary" data-action="import">导入卡组</button>
                 ${mode === 'mine' ? `<button class="btn btn-outline" data-action="edit">编辑</button><button class="btn btn-outline" data-action="${item.status === 'public' ? 'unpublish' : 'publish'}">${item.status === 'public' ? '下架' : '重新公开'}</button><button class="btn btn-danger" data-action="delete">删除</button>` : ''}
                 ${admin ? `<button class="btn btn-outline" data-action="${item.moderated ? 'unhide' : 'hide'}">${item.moderated ? '解除管理下架' : '管理下架'}</button>` : ''}</div></article>`).join('') || '<p class="text-muted">暂无卡组。官网资料正在逐步收录，当前结果不代表官网全部卡组。</p>';
             $('communityPage').textContent = `共 ${total} 套 · ${pages ? page : 0} / ${pages} 页`;
@@ -318,6 +350,18 @@ export async function initCommunity(editor) {
         catch (e) { message(e.message, true); }
     });
     $('clearRecommendations').addEventListener('click', () => { selected = []; renderSelection(); updateFilterState(); });
+    $('communitySelectedFilters').addEventListener('click', event => {
+        const button = event.target.closest('[data-remove-community-filter]');
+        if (!button) return;
+        const name = button.dataset.removeCommunityFilter, value = button.dataset.value;
+        if (name === 'source') $('communitySource').value = '';
+        else if (name === 'range') {
+            for (const bound of ['min', 'max']) { const input = $(`communityAttr${value}${bound}`); input.value = ''; input.setCustomValidity(''); }
+        } else if (name === 'code') { selected = selected.filter(code => code !== value); renderSelection(); }
+        else if (name === 'match') $('recommendMatch').value = 'all';
+        else { const state = filters.get(name); state.selected.delete(value); state.render(); }
+        updateFilterState();
+    });
     $('communityClearFilters').addEventListener('click', () => { clearFilters(); applySearch(); });
     $('recommendMatch').addEventListener('change', updateFilterState);
     $('showRecommendations').addEventListener('click', () => applySearch());
@@ -327,7 +371,7 @@ export async function initCommunity(editor) {
     $('communityAttributeRanges').innerHTML = attributes.map(attribute => `<label class="community-attribute-range"><span>${attribute}</span><input id="communityAttr${attribute}min" type="number" min="0" max="200" step="1" inputmode="numeric" aria-label="${attribute}属性数量下限" placeholder="下限"><span>～</span><input id="communityAttr${attribute}max" type="number" min="0" max="200" step="1" inputmode="numeric" aria-label="${attribute}属性数量上限" placeholder="上限"></label>`).join('');
     $('communityAttributeRanges').addEventListener('input', event => { event.target.setCustomValidity(''); updateFilterState(); });
     document.body.classList.add('recommend-enabled');
-    renderSelection();
+    renderSelection(); updateFilterState();
     await Promise.allSettled([
         updateSession().catch(e => message(e.message, true)),
         request('/api/community?facets=1').then(data => seriesFilter.updateOptions(data.series || [])).catch(() => {

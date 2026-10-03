@@ -18,6 +18,7 @@ import unicodedata
 from pathlib import Path
 from collections import defaultdict
 from update_and_translate import validate_translation
+from translation_terms import term_issues
 
 ROOT = Path(__file__).resolve().parents[1]
 JAPANESE_DB = ROOT / 'lycee-japanese-database-final.json'
@@ -45,6 +46,8 @@ TERMINOLOGY = {
     'ｻﾌﾟﾗｲｽﾞ': '突袭',
     'ｺｽﾄ': 'COST能力',
     'ｴﾘｱ': '场地',
+    'サポート': '支援',
+    'コンバート': '换装',
 }
 
 # Format markers that should be preserved
@@ -72,13 +75,15 @@ def check_terminology(japanese_text, chinese_text):
     headings = re.findall(r'\[([^\[\]:]+)(?=:|\])', remaining)
     for jp_term, cn_term in TERMINOLOGY.items():
         jp_term = unicodedata.normalize('NFKC', jp_term)
+        if jp_term in ('サポート', 'コンバート'):
+            continue  # Also verify references in the body, without confusing assist/supporter.
         if jp_term in headings:
             if jp_term == 'コスト' and '[COST]' in chinese_text:
                 continue
             if cn_term not in chinese_text:
                 issues.append(f"术语未正确翻译: {jp_term} → {cn_term}")
 
-    return issues
+    return issues + term_issues(japanese_text, chinese_text)
 
 
 def check_format_markers(japanese_text, chinese_text):
@@ -120,7 +125,7 @@ def check_quantity_words(chinese_text):
     issues = []
 
     # Check for '体' usage (should not be used for units)
-    if re.search(r'\d+体', chinese_text):
+    if re.search(r'\d+\s*体', unicodedata.normalize('NFKC', chinese_text)):
         issues.append("量词使用错误: 应使用「个」而非「体」")
 
     return issues

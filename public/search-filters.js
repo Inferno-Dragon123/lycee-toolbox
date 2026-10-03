@@ -13,7 +13,8 @@ export function initSearchFilters(root, selectedBar, { facets, abilityFacets }) 
         ...f.options.map(o => [o.value, f.label + '：' + o.label])])));
     function input(key, label) {
         fieldLabels.set(key, label);
-        return `<div class="filter-item"><label for="field_${key}">${label}</label><input id="field_${key}" data-key="${key}" maxlength="200" placeholder="${label}"></div>`;
+        const placeholder = key === 'code' ? '如 6826 或 LO-6826-A' : label;
+        return `<div class="filter-item"><label for="field_${key}">${label}</label><input id="field_${key}" data-key="${key}" maxlength="200" placeholder="${placeholder}"></div>`;
     }
     const dropdown = (key, label) => `<div class="filter-item"><label id="label_${key}">${label}</label><button type="button" id="field_${key}" class="filter-trigger" data-filter="${key}" aria-haspopup="dialog" aria-controls="searchFilterPopup" aria-expanded="false" aria-labelledby="label_${key} field_${key}">全部 <span aria-hidden="true">▾</span></button></div>`;
     root.innerHTML = input('q', '关键词（中日文）') + input('code', '卡号') + groups.map(g => dropdown(g.key, g.label)).join('') +

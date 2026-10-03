@@ -38,6 +38,14 @@
 .community-attribute-range > span:first-child { flex-shrink: 0; }
 .community-search-actions { margin-top: 10px; }
 .community-search-actions label { min-width: 0; }
+.community-selected-filter-bar { margin-top: 14px; padding: 12px; border: 1px solid #d4dfec; border-radius: 10px; background: white; }
+.community-selected-filter-bar > strong { display: block; margin-bottom: 8px; font-size: .9rem; }
+.community-selected-filter-bar > p { margin: 8px 0 0; font-size: .8rem; line-height: 1.5; }
+.community-filter-chip { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; border: 1px solid #bfcee2; border-radius: 16px; padding: 6px 10px; background: #eaf2ff; color: #164f94; font: inherit; font-size: .85rem; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.community-filter-chip > span { flex-shrink: 0; }
+.community-filter-chip:hover { border-color: #2a7de1; }
+.community-filter-chip:focus-visible { outline: 2px solid #2a7de1; outline-offset: 2px; }
+.community-filter-chip-static { border-color: #d4dfec; color: #526a85; background: #f4f7fc; cursor: default; }
 .community-composition { display: flex; flex-wrap: wrap; gap: 6px 10px; color: #526a85; font-size: .85rem; margin-top: 8px; }
 .community-composition strong { color: #225a9b; }
 .community-pagination { margin-top: 10px; }

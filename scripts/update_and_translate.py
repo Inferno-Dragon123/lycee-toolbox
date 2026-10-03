@@ -21,6 +21,7 @@ from urllib.request import Request, urlopen
 
 sys.path.insert(0, str(Path(__file__).parent))
 from update_japanese_database import main as update_japanese_main, ROOT, WORK, DATABASE, sort_key, atomic_write
+from translation_terms import normalize_translation_terms
 
 CHINESE_DATABASE = ROOT / 'lycee-chinese-database-final.json'
 DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
@@ -50,13 +51,13 @@ SYSTEM_PROMPT = """你是一个专业的日文卡牌游戏效果翻译专家。�
    ｻﾌﾟﾗｲｽﾞ → 突袭
    ｺｽﾄ → COST能力
    ｴﾘｱ → 场地
+   サポート → 支援
+   コンバート → 换装
 
 2. 保留原文的格式符号（如：[宣言]、[诱发]、[COST]、[切札]等）
 3. 保持原文的分隔符（|）结构，不要改变其位置
 4. 除了卡牌效果和能力之外涉及到的其他专有名称（如角色名、作品名、技能名等）保持原文不翻译
-5. 所有角色、单位等战斗单位的数量量词统一用「个」，不使用「体」。
-
-只输出翻译结果，不要添加任何解释或注释。"""
+5. 所有角色、单位等战斗单位的数量量词统一用「个」，不使用「体」。"""
 
 
 def now_iso():
@@ -115,6 +116,9 @@ def validate_translation(original, translated):
     tokens = lambda s: [t for t in re.findall(r'\[(?:[A-Z]+\d*|\d+|[雪月花宙日無]+)\]', unicodedata.normalize('NFKC', s)) if t != '[COST]']
     if tokens(original) != tokens(translated):
         raise ValueError('Translation changed effect/cost symbols')
+    translated, _, issues = normalize_translation_terms(original, translated)
+    if issues:
+        raise ValueError('Translation terminology cannot be safely aligned: ' + '; '.join(issues))
     return translated.strip()
 
 
@@ -122,7 +126,7 @@ def call_deepseek(text, api_key, max_retries=3):
     for attempt in range(max_retries):
         try:
             payload = json.dumps({'model': os.environ.get('DEEPSEEK_MODEL', DEEPSEEK_MODEL),
-                'messages': [{'role': 'system', 'content': SYSTEM_PROMPT + '\n术语表同样适用于全角片假名。保留方括号内的数字、费用符号、英文代码。'},
+                'messages': [{'role': 'system', 'content': SYSTEM_PROMPT + '\n术语表同样适用于全角片假名。保留方括号内的数字、费用符号、英文代码。只输出翻译结果，不要添加任何解释或注释。'},
                              {'role': 'user', 'content': text}],
                 'temperature': 0.3, 'thinking': {'type': 'disabled'}, 'max_tokens': 4096}).encode('utf-8')
             request = Request(DEEPSEEK_API_URL, data=payload, headers={
@@ -170,13 +174,15 @@ def translate_cards(new_cards, api_key, work_dir, workers=1, reuse=None, reuse_d
             if not original.strip():
                 text = ''  # A card with no effect still needs a matching Chinese record.
             elif key in reuse:
-                text = reuse[key]
+                text = validate_translation(original, reuse[key])
                 # Copying an old translation to another card face isn't a new translation.
-                translated_at = reuse_dates.get(key)
+                translated_at = reuse_dates.get(key) if text == reuse[key] else now_iso()
             elif cache_file.exists():
                 cached = load_json(cache_file)
                 text = validate_translation(original, cached['text'])
-                translated_at = cached.get('translatedAt')
+                translated_at = cached.get('translatedAt') if text == cached['text'] else now_iso()
+                if text != cached['text']:
+                    save_json(cache_file, {'text': text, 'sourceHash': key, 'translatedAt': translated_at})
             else:
                 if not api_key:
                     raise PermanentAPIError('DEEPSEEK_API_KEY is required for missing translations')
@@ -295,9 +301,13 @@ def main(argv=None):
     reuse_dates = {}
     for code, card in existing.items():
         if code in originals and card.get('japaneseText'):
-            reuse_values[translation_key(originals[code])].add(card['japaneseText'])
+            try:
+                reusable = validate_translation(originals[code]['japaneseText'], card['japaneseText'])
+            except ValueError:
+                continue  # Do not copy an uncertain legacy translation to a new card face.
+            reuse_values[translation_key(originals[code])].add(reusable)
             key = translation_key(originals[code])
-            date = card.get('translatedAt')
+            date = card.get('translatedAt') if reusable == card['japaneseText'] else now_iso()
             if date and (not reuse_dates.get(key) or date > reuse_dates[key]):
                 reuse_dates[key] = date
     reuse = {key: next(iter(values)) for key, values in reuse_values.items() if len(values) == 1}

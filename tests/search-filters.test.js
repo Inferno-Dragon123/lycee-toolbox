@@ -57,7 +57,7 @@ test('multi-select facets combine alternatives within a field and intersect diff
 });
 
 test('ability families and exact variants filter independently and combine with zero numeric ranges', () => {
-    assert.equal(abilityFacets.length, 18);
+    assert.equal(abilityFacets.length, 19);
     const family = abilityFacets.find(f => f.value === 'charge');
     const variant = family.options.find(o => o.value === 'charge:2');
     assert(variant);
@@ -70,4 +70,32 @@ test('ability families and exact variants filter independently and combine with 
     assert.equal(search(new URLSearchParams({ code: bodyOnly.code, ability: 'aggressive' })).total, 0);
     const union = new URLSearchParams(); union.append('ability', 'charge:1'); union.append('ability', 'charge:2');
     assert.equal(search(union).total, cards.filter(c => extractBasicAbilities(c.effect).some(a => ['charge:1', 'charge:2'].includes(a.value))).length);
+});
+
+test('convert includes costs and original target names while body references are excluded', () => {
+    const effect = '[サポーター:[花花]][コンバート:[0]:→「人気配信者な妖狐∨ 夏乃ゆかた」][チャージ:1]\n[誘発] このキャラは[コンバート]を失う。';
+    const effectZh = '[支援者:[花花]][换装:[0]:→「人気配信者な妖狐∨ 夏乃ゆかた」][充能:1]\n[诱发] 此角色失去[换装]。';
+    const abilities = extractBasicAbilities(effect);
+    assert.deepEqual(abilities.map(a => a.id), ['supporter', 'convert', 'charge']);
+    assert.deepEqual(extractBasicAbilities(effectZh, true).map(a => a.id), ['supporter', 'convert', 'charge']);
+    assert.equal(abilities[1].detail, '[0]:→「人気配信者な妖狐∨ 夏乃ゆかた」');
+    assert.deepEqual(extractBasicAbilities('[宣言] このキャラは[コンバート]を得る。'), []);
+    const index = buildAbilityIndex([{ code: 'LO-6465', effect, effectZh }]);
+    const family = index.facets.find(f => f.value === 'convert');
+    assert.equal(family.label, '换装');
+    assert.equal(family.options[0].label, '[0]:→「人気配信者な妖狐∨ 夏乃ゆかた」');
+    assert(search(new URLSearchParams({ code: '6465', ability: 'convert' })).total > 0);
+    assert.equal(search(new URLSearchParams({ code: '6435', ability: 'convert' })).total, 0);
+    const realVariant = abilityFacets.find(f => f.value === 'convert').options.find(o => o.original.includes('夏乃ゆかた'));
+    assert(realVariant);
+    assert(search(new URLSearchParams({ code: '6465', ability: realVariant.value })).total > 0);
+});
+
+test('card number search accepts numbers, full codes, numeric prefixes and artwork suffixes', () => {
+    for (const [short, full] of [['6826', 'LO-6826'], ['６８２６', 'LO-6826'], ['6826-a', 'LO-6826-A'], ['0001a', 'LO-0001A'], ['68', 'LO-68']]) {
+        const params = { limit: '100', attribute: '月' };
+        assert.deepEqual(search(new URLSearchParams({ ...params, code: short })), search(new URLSearchParams({ ...params, code: full })));
+    }
+    assert(search(new URLSearchParams({ code: '6826' })).cards.some(c => c.code === 'LO-6826'));
+    assert.deepEqual(search(new URLSearchParams({ code: '6826-A' })).cards.map(c => c.code), ['LO-6826-A']);
 });

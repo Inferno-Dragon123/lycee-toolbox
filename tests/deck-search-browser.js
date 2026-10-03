@@ -95,6 +95,10 @@ try {
     assert.equal(await page.$eval('#communityPageInput', element => element.max), '2');
     assert.equal(await page.$$eval('.community-item', elements => elements.length), 20);
     assert(await page.$eval('.community-item', element => element.textContent.includes('雪：') && element.textContent.includes('花：')));
+    assert.equal(await page.$eval('#communitySelectedFilters', element => element.textContent), '暂无筛选条件');
+    assert(await page.$$eval('.community-title[href^="https://lycee-tcg.com/d/"]', elements => elements.length > 0 && elements.every(element => element.target === '_blank' && element.relList.contains('noopener') && element.relList.contains('noreferrer'))));
+    assert(await page.$$eval('.community-title', elements => elements.some(element => element.href.includes('/?publication=') && !element.target)));
+    assert(await page.$$eval('.community-item', elements => elements.every(element => !element.textContent.includes('官网原链接') && element.querySelectorAll('a').length === 1 && element.querySelector('[data-action="preview"]') && element.querySelector('[data-action="import"]'))));
 
     holdNext = true;
     await click('#communityLast');
@@ -117,9 +121,10 @@ try {
     await click('[data-deck-filter="deckType"][data-value="single"]');
     await click('[data-deck-filter="deckType"][data-value="mix"]');
     assert.equal(await page.$$eval('[data-deck-filter="deckType"][aria-pressed="true"]', elements => elements.length), 2);
-    await click('[data-deck-filter="deckType"][data-value="mix"]');
-    assert.equal(await page.$$eval('[data-deck-filter="deckType"][aria-pressed="true"]', elements => elements.length), 1);
+    assert.equal(await page.$$eval('[data-remove-community-filter="deckType"]', elements => elements.length), 2);
     await page.keyboard.press('Escape');
+    await click('[data-remove-community-filter="deckType"][data-value="mix"]');
+    assert.equal(await page.$$eval('[data-deck-filter="deckType"][aria-pressed="true"]', elements => elements.length), 1);
     await search();
     assert.equal((await query(requests.at(-1))).total, 25);
     assert.equal(await page.$$eval('.community-item', elements => elements.length), 20);
@@ -127,19 +132,29 @@ try {
     const beforeDraft = requests.length;
     await page.select('#communitySource', 'community');
     assert.equal(requests.length, beforeDraft);
+    assert.equal(await page.$eval('[data-remove-community-filter="source"]', element => element.textContent), '来源：本站投稿×');
+    assert(await page.$eval('#communitySelectedFiltersHint', element => element.textContent.includes('上次检索条件')));
     await click('#communityLast'); await settled();
     assert.equal(requests.at(-1).get('source'), null);
     assert.equal((await query(requests.at(-1))).total, 25);
     assert(await page.$eval('#communityFilterState', element => element.textContent.includes('待检索')));
+    assert(await page.$('[data-remove-community-filter="source"]'));
     await search();
     assert.equal((await query(requests.at(-1))).total, 1);
     assert.equal(await page.$$eval('.community-item', elements => elements.length), 1);
+    assert(await page.$eval('#communityFilterState', element => element.textContent.includes('已应用')));
+    const beforeRemoveSource = requests.length;
+    await click('[data-remove-community-filter="source"]');
+    assert.equal(requests.length, beforeRemoveSource);
+    assert.equal(await page.$eval('#communitySource', element => element.value), '');
     await clear();
+    assert.equal(await page.$eval('#communitySelectedFilters', element => element.textContent), '暂无筛选条件');
 
     await click('#communitySeriesTrigger');
     await click('[data-deck-filter="series"][data-value="NAV"]');
     await click('[data-deck-filter="series"][data-value="AL"]');
     assert.equal(await page.$$eval('[data-deck-filter="series"][aria-pressed="true"]', elements => elements.length), 2);
+    assert.equal(await page.$$eval('[data-remove-community-filter="series"]', elements => elements.length), 2);
     await page.keyboard.press('Escape'); await search();
     assert.equal((await query(requests.at(-1))).total, 25);
     await clear();
@@ -148,6 +163,8 @@ try {
     await click('[data-deck-filter="attribute"][data-value="雪"]');
     await page.keyboard.press('Escape'); await search();
     assert.equal((await query(requests.at(-1))).total, 5);
+    await click('[data-remove-community-filter="attribute"][data-value="雪"]');
+    assert.equal(await page.$eval('[data-deck-filter="attribute"][data-value="雪"]', element => element.getAttribute('aria-pressed')), 'false');
     await clear();
     await click('.community-range-details summary');
     await fill('#communityAttr雪min', '0'); await fill('#communityAttr雪max', '0');
@@ -155,6 +172,9 @@ try {
     assert.equal((await query(requests.at(-1))).total, 24);
     assert.equal(requests.at(-1).get('attr_雪_min'), '0');
     assert.equal(requests.at(-1).get('attr_雪_max'), '0');
+    assert.equal(await page.$eval('[data-remove-community-filter="range"][data-value="雪"]', element => element.textContent), '雪数量：0～0×');
+    await click('[data-remove-community-filter="range"][data-value="雪"]');
+    assert(await page.$$eval('#communityAttr雪min,#communityAttr雪max', elements => elements.every(element => element.value === '')));
     await clear();
 
     await fill('#recommendCodesInput', 'LO-4000, LO-6000');
@@ -162,8 +182,21 @@ try {
     await search();
     assert.equal((await query(requests.at(-1))).total, 4);
     assert.equal(requests.at(-1).get('match'), 'all');
+    assert.equal(await page.$$eval('[data-remove-community-filter="code"]', elements => elements.length), 2);
+    assert.equal(await page.$eval('.community-filter-chip-static', element => element.textContent), '匹配方式：全部包含');
     await page.select('#recommendMatch', 'any'); await search();
     assert.equal((await query(requests.at(-1))).total, 29);
+    assert.equal(await page.$eval('[data-remove-community-filter="match"]', element => element.textContent), '匹配方式：任意包含×');
+    await click('[data-remove-community-filter="match"]');
+    assert.equal(await page.$eval('#recommendMatch', element => element.value), 'all');
+    await click('#communityRefresh'); await settled();
+    assert.equal(requests.at(-1).get('match'), 'any');
+    assert(await page.$eval('#communityFilterState', element => element.textContent.includes('待检索')));
+    await search();
+    assert.equal((await query(requests.at(-1))).total, 4);
+    await click('[data-remove-community-filter="code"][data-value="LO-4000"]');
+    assert.equal(await page.$eval('#recommendCount', element => element.textContent), '1 / 10');
+    assert.equal(await page.$$eval('[data-remove-recommend]', elements => elements.length), 1);
     await page.screenshot({ path: path.join(output, 'deck-search-desktop.png') });
     await clear();
 
@@ -176,13 +209,23 @@ try {
     await clear();
 
     await page.setViewport({ width: 390, height: 844 });
+    await page.select('#communitySource', 'official_user');
+    await fill('#recommendCodesInput', 'LO-4000, LO-6000');
+    await page.$eval('#recommendForm', element => element.requestSubmit());
+    await click('#communityDeckTypeTrigger');
+    await click('[data-deck-filter="deckType"][data-value="single"]');
+    await page.keyboard.press('Escape');
+    await fill('#communityAttr雪min', '0'); await fill('#communityAttr雪max', '60');
+    assert(await page.$$eval('#communitySelectedFilters .community-filter-chip', elements => elements.length === 6 && elements.every(element => { const bounds = element.getBoundingClientRect(); return bounds.left >= 0 && bounds.right <= innerWidth; })));
+    await click('[data-remove-community-filter="code"][data-value="LO-4000"]');
+    assert.equal(await page.$eval('#recommendCount', element => element.textContent), '1 / 10');
     await click('#communitySeriesTrigger');
-    await page.screenshot({ path: path.join(output, 'deck-search-mobile.png') });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     assert(await page.$eval('#communitySeriesOptions', element => { const bounds = element.getBoundingClientRect(); return bounds.left >= 0 && bounds.right <= innerWidth; }));
     await page.keyboard.press('Escape');
+    await page.$('#recommendControls').then(element => element.screenshot({ path: path.join(output, 'deck-search-mobile.png') }));
     assert.deepEqual(errors, []);
-    console.log('Deck search SQL + UI: composition, multi-select, counts, cards all/any, hidden exclusion, last/jump/invalid/empty pages, applied condition snapshot and mobile viewport passed');
+    console.log('Deck search SQL + UI: selected filter chips and removal, official title links, composition, multi-select, counts, cards all/any, hidden exclusion, last/jump/invalid/empty pages, applied condition snapshot and mobile viewport passed');
 } finally {
     if (browser) await browser.close();
     if (server?.listening) await new Promise(resolve => server.close(resolve));

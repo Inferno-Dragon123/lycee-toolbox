@@ -11,6 +11,8 @@ from urllib.error import HTTPError
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import update_and_translate as u
 import check_translation_quality as quality
+import normalize_translation_terms as repair
+from translation_terms import normalize_translation_terms
 
 
 def card(code, text='日文'):
@@ -18,6 +20,77 @@ def card(code, text='日文'):
 
 
 class PipelineTests(unittest.TestCase):
+    def test_support_convert_repairs_keep_assist_supporter_names_and_costs(self):
+        jp = '[アシスト][サポーター:[花花]][コンバート:[C4]:→「コンバートのサポート」]\n[誘発] 味方キャラでサポートをしたとき、サポート能力値にする。'
+        zh = '[辅助][支援者:[花花]][コンバート:[C4]:→「コンバートのサポート」]\n[诱发] 当用我方角色进行辅助时，将辅助能力值变为原值。'
+        fixed, changes, unresolved = normalize_translation_terms(jp, zh)
+        self.assertEqual(fixed, '[辅助][支援者:[花花]][换装:[C4]:→「コンバートのサポート」]\n[诱发] 当用我方角色进行支援时，将支援能力值变为原值。')
+        self.assertEqual(len(changes), 3)
+        self.assertEqual(unresolved, [])
+        self.assertEqual(normalize_translation_terms(jp, fixed), (fixed, [], []))
+        self.assertEqual(quality.check_terminology(jp, fixed), [])
+        self.assertTrue(quality.check_terminology(jp, zh))
+
+    def test_ambiguous_terms_are_reported_without_guessing_or_modifying(self):
+        jp = '[誘発] このキャラでサポートをしたとき、本文。'
+        for zh in ('[诱发] 支援者进行辅助和支持。', '[诱发]\n进行辅助。'):
+            with self.subTest(zh=zh):
+                fixed, changes, unresolved = normalize_translation_terms(jp, zh)
+                self.assertEqual(fixed, zh)
+                self.assertEqual(changes, [])
+                self.assertTrue(unresolved)
+                with self.assertRaises(ValueError):
+                    u.validate_translation(jp, zh)
+
+    def test_receiving_support_trigger_is_fixed_without_reversing_giving_support(self):
+        for trigger, expected in [('に', '当这个角色受到支援时'), ('で', '当这个角色进行支援时')]:
+            jp = f'[誘発] このキャラ{trigger}サポートをしたとき、このキャラにAP+2する。'
+            zh = '[诱发] 当这个角色进行辅助时，这个角色获得AP+2。'
+            fixed, changes, unresolved = normalize_translation_terms(jp, zh)
+            self.assertIn(expected, fixed)
+            self.assertEqual(sum(c.startswith('语义修正') for c in changes), int(trigger == 'に'))
+            self.assertEqual(unresolved, [])
+        correct = '[诱发] 当这个角色被支援时，这个角色获得AP+2。'
+        self.assertEqual(normalize_translation_terms('[誘発] このキャラにサポートをしたとき、このキャラにAP+2する。', correct), (correct, [], []))
+
+    def test_database_repair_keeps_aliases_and_metadata_and_is_idempotent(self):
+        jp = {'cards': [card('LO-0001', '[コンバート:[花花]:→「角色」]')]}
+        records = [dict(card('LO-0001', '[コンバート:[花花]:→「角色」]'), translatedAt='old'),
+                   dict(card('LO-0001', '[换装:[花花]:→「角色」]'), cid='alias', translatedAt='keep')]
+        zh = {'cards': records, 'totalCards': 2, 'generatedAt': 'keep'}
+        report = repair.repair_database(jp, zh, 'new')
+        self.assertEqual(report['changedRecords'], 1)
+        self.assertEqual([c['cid'] for c in zh['cards']], ['', 'alias'])
+        self.assertEqual([c['translatedAt'] for c in zh['cards']], ['new', 'keep'])
+        self.assertEqual((zh['totalCards'], zh['generatedAt']), (2, 'keep'))
+        self.assertEqual(repair.repair_database(jp, zh, 'newer')['changedRecords'], 0)
+
+    def test_current_prompt_invalidates_old_cache_and_legacy_reuse_cannot_restore_old_terms(self):
+        original = card('LO-0001', '[コンバート:[0]:→「角色」]\n[誘発] このキャラでサポートをしたとき、本文。')
+        translated = '[コンバート:[0]:→「角色」]\n[诱发] 当这个角色进行辅助时，中文。'
+        key = u.translation_key(original)
+        with patch.object(u, 'SYSTEM_PROMPT', u.SYSTEM_PROMPT + '\nold-prompt'):
+            self.assertNotEqual(key, u.translation_key(original))
+        with tempfile.TemporaryDirectory() as tmp, patch.object(u, 'call_deepseek') as api:
+            reused, failures = u.translate_cards([original], None, Path(tmp), reuse={key: translated}, reuse_dates={key: 'old'})
+            self.assertEqual(failures, [])
+            self.assertIn('[换装:[0]', reused[0]['japaneseText'])
+            self.assertIn('进行支援时', reused[0]['japaneseText'])
+            self.assertNotEqual(reused[0]['translatedAt'], 'old')
+            u.save_json(Path(tmp) / 'translation-cache' / (key + '.json'), {'text': translated, 'translatedAt': 'old'})
+            with patch.object(u, 'now_iso', return_value='2026-10-04T00:00:00Z'):
+                cached, failures = u.translate_cards([original], None, Path(tmp))
+            self.assertEqual(failures, [])
+            self.assertEqual(cached[0]['japaneseText'], reused[0]['japaneseText'])
+            with patch.object(u, 'now_iso', return_value='2026-10-05T00:00:00Z'):
+                later, failures = u.translate_cards([original], None, Path(tmp))
+            self.assertEqual(later[0]['translatedAt'], cached[0]['translatedAt'])
+            api.assert_not_called()
+
+    def test_full_width_unit_quantity_is_reported(self):
+        self.assertTrue(quality.check_quantity_words('１体角色'))
+        self.assertEqual(quality.check_quantity_words('1个角色，体力3。'), [])
+
     def test_quality_check_accepts_translated_ability_markers_and_matches_full_width_terms(self):
         jp = '[サイドステップ:[0]][誘発] 本文。[コスト] [無]:本文。'
         zh = '[横向侧移:[0]][诱发] 中文。[COST] [无]:中文。'
