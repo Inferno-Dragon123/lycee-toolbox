@@ -2,9 +2,15 @@ import { validateDeck } from '../public/deck-format.js';
 import { hydrate } from '../lib/catalog.js';
 import { method, body, fail } from '../lib/http.js';
 import { downloadImages, renderPdf } from '../lib/pdf.js';
+import { pdfLimiter } from '../lib/resource-limit.js';
 
 export default async function handler(req, res) {
     if (!method(req, res, ['POST'])) return;
+    const release = pdfLimiter.acquire();
+    if (!release) {
+        res.setHeader('Retry-After', '10');
+        return res.status(429).json({ error: '卡表导出正在处理中，请稍后重试' });
+    }
     try {
         let deck;
         try {
@@ -33,4 +39,5 @@ export default async function handler(req, res) {
         res.setHeader('X-Missing-Images', String(missingImages));
         return res.status(200).send(buffer);
     } catch (e) { return fail(res, e); }
+    finally { release(); }
 }

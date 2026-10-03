@@ -74,7 +74,7 @@ function renderResults(cards) {
         const effect = (card.effectZh || card.effect || '无效果').replace(/\|/g, '\n');
         return `<div class="search-card" data-card="${card.code}">
             <div class="card-left">
-                <a href="${escapeHtml(card.img)}" target="_blank" rel="noopener"><img src="/api/image-proxy?url=${encodeURIComponent(card.img)}" loading="lazy" alt="${escapeHtml(card.name)}"></a>
+                <a href="${escapeHtml(card.originalImg || card.img)}" target="_blank" rel="noopener"><img src="${escapeHtml(card.thumbnailImg || '/api/image-proxy?url=' + encodeURIComponent(card.img))}" loading="lazy" alt="${escapeHtml(card.name)}"></a>
                 <div class="deck-actions">
                     <button class="btn btn-outline btn-sm" data-code="${card.code}" data-delta="1" aria-label="增加 ${card.code}">+</button>
                     <span>${count}</span><button class="btn btn-outline btn-sm" data-code="${card.code}" data-delta="-1" ${count ? '' : 'disabled'} aria-label="减少 ${card.code}">−</button>

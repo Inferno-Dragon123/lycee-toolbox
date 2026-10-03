@@ -30,3 +30,7 @@ lycee-japanese-database-complete.json
 failed-*.txt
 .neon
 .env*
+*.pem
+*.key
+SecretKey.csv
+deployment-runtime/

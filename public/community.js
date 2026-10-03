@@ -1,4 +1,4 @@
-import { createAuthClient } from '@neondatabase/auth';
+import { createSiteAuthClient } from './auth-client.js';
 import { baseCode, sourceLabels, publicationInput, PUBLICATION_ID, selectedCodes, validateNickname } from './community-format.js';
 
 const $ = id => document.getElementById(id);
@@ -10,7 +10,7 @@ async function request(url, options) {
     return data;
 }
 export async function initCommunity(editor) {
-    const auth = createAuthClient(`${location.origin}/api/auth`);
+    const auth = createSiteAuthClient();
     let user = null, profile = null, admin = false, mode = 'public', page = 1, pages = 0, total = 0, selected = [], serial = 0, previewSerial = 0;
     let items = [], editing = null, publishing = null, preview = null, otpUntil = 0;
     let loading = false, appliedFilters = new URLSearchParams();
@@ -218,7 +218,7 @@ export async function initCommunity(editor) {
             const info = new Map(item.cardInfo.map(card => [card.code, card]));
             $('previewCards').innerHTML = Object.entries(item.cards).map(([code, quantity]) => {
                 const card = info.get(code);
-                return `<div class="preview-card">${card ? `<img loading="lazy" src="/api/image-proxy?url=${encodeURIComponent(card.img)}" alt="${escape(card.name)}">` : '<div class="preview-missing">卡库暂未收录</div>'}<strong>${escape(code)} × ${quantity}</strong><span>${escape(card?.name || '')}</span></div>`;
+                return `<div class="preview-card">${card ? `<img loading="lazy" src="${escape(card.thumbnailImg || '/api/image-proxy?url=' + encodeURIComponent(card.img))}" alt="${escape(card.name)}">` : '<div class="preview-missing">卡库暂未收录</div>'}<strong>${escape(code)} × ${quantity}</strong><span>${escape(card?.name || '')}</span></div>`;
             }).join('');
             $('previewNote').textContent = item.missing.length ? `缺少卡牌资料：${item.missing.join('、')}，暂不可导入。` : '预览不会更改当前组卡器。';
             $('previewImport').disabled = Boolean(item.missing.length);

@@ -5,6 +5,7 @@ import { byCode, hydrate } from '../lib/catalog.js';
 import { body, method, fail } from '../lib/http.js';
 import { compositionSeries } from '../lib/deck-composition.js';
 import { parseDeckSearch } from '../lib/deck-search.js';
+import { withCardImageUrls } from '../lib/card-images.js';
 
 const invalid = message => Object.assign(new Error(message), { status: 400 });
 export function communityHandler({ identify = currentUser, store = { createPublication, updatePublication, listPublications, getPublication, getProfile, setProfile } } = {}) {
@@ -27,7 +28,7 @@ export function communityHandler({ identify = currentUser, store = { createPubli
                     if (!PUBLICATION_ID.test(id)) throw invalid('无效发布 ID');
                     const item = await store.getPublication(id, user);
                     const missing = Object.keys(item.cards).filter(code => !byCode.has(code));
-                    return res.status(200).json({ ...item, missing, cardInfo: Object.keys(item.cards).filter(code => byCode.has(code)).map(code => byCode.get(code)) });
+                    return res.status(200).json({ ...item, missing, cardInfo: Object.keys(item.cards).filter(code => byCode.has(code)).map(code => withCardImageUrls(byCode.get(code))) });
                 }
                 const page = Number(params.get('page') || 1), source = params.get('source'), match = params.get('match') || 'all';
                 if (!Number.isSafeInteger(page) || page < 1 || page > 1000000) throw invalid('无效页码');

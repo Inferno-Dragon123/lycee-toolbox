@@ -1,63 +1,39 @@
-// api/image-proxy.js - 代理图片请求，绕过浏览器 CORS 限制
 import axios from 'axios';
+import { imageKeyForSource, readStoredImage, inspectImage, MAX_IMAGE_BYTES } from '../lib/card-images.js';
+import { method, fail } from '../lib/http.js';
 
-export default async function handler(req, res) {
-    // CORS 头
+export function imageProxyHandler({ readImage = readStoredImage, fetchImage = (url, options) => axios.get(url, options) } = {}) {
+return async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    if (req.method === 'OPTIONS') {
-        return res.status(204).end();
-    }
-
-    // 只允许 GET
-    if (req.method !== 'GET') {
-        return res.status(405).json({ error: 'Method not allowed' });
-    }
-
-    const { url } = req.query;
-    if (!url) {
-        return res.status(400).json({ error: 'Missing url parameter' });
-    }
-
-    // 只允许 lycee-tcg.com 和 moetcg.club 的图片
-    const allowedDomains = ['lycee-tcg.com', 'moetcg.club'];
-    let hostname;
+    if (!method(req, res, ['GET'])) return;
+    res.setHeader('Cache-Control', 'no-store');
     try {
-        const parsed = new URL(url);
-        hostname = parsed.hostname;
-        if (!['https:', 'http:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.port) throw new Error('Invalid URL');
-    } catch (e) {
-        return res.status(400).json({ error: 'Invalid URL' });
-    }
-
-    if (!allowedDomains.some(domain => hostname === domain || hostname === 'www.' + domain)) {
-        return res.status(403).json({ error: 'Domain not allowed' });
-    }
-
-    try {
-        const response = await axios.get(url, {
-            responseType: 'arraybuffer',
-            maxRedirects: 0,
-            maxContentLength: 3000000,
-            timeout: 10000,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://lycee-tcg.com/',
-                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
-            }
-        });
-
-        // 设置缓存头（1小时）
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-        res.setHeader('Content-Type', response.headers['content-type'] || 'image/png');
-
-        return res.send(Buffer.from(response.data));
-    } catch (error) {
-        console.error('[Image Proxy] 错误:', error.message);
-        // 返回 1x1 透明 PNG 作为占位符
-        const transparentPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+        const url = req.query?.url || new URL(req.url, 'http://localhost').searchParams.get('url');
+        const code = imageKeyForSource(url);
+        const local = await readImage(code);
+        if (local) {
+            res.setHeader('Content-Type', local.contentType);
+            res.setHeader('ETag', local.etag);
+            res.setHeader('Last-Modified', local.lastModified);
+            res.setHeader('Cache-Control', 'public, max-age=3600');
+            return res.status(200).send(local.buffer);
+        }
+        // A partial mirror falls back to the fixed official source, never to
+        // /images/. Only the paced mirror command stores validated originals.
+        const response = await fetchImage(url, { responseType: 'arraybuffer', timeout: 10000,
+            maxRedirects: 0, maxContentLength: MAX_IMAGE_BYTES,
+            headers: { 'User-Agent': 'LyceeToolbox/1.0', Referer: 'https://lycee-tcg.com/' } });
+        const buffer = Buffer.from(response.data);
+        await inspectImage(buffer, code);
         res.setHeader('Content-Type', 'image/png');
-        return res.send(transparentPng);
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        return res.status(200).send(buffer);
+    } catch (e) {
+        if (!e.status) e = Object.assign(new Error('卡图暂不可用，请稍后重试'), { status: 502, expose: true });
+        return fail(res, e);
     }
 }
+}
+export default imageProxyHandler();

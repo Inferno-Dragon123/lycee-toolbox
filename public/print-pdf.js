@@ -26,7 +26,9 @@ export async function loadPrintImage(card) {
     const abort = new AbortController(), timer = setTimeout(() => abort.abort(), 15000);
     let bitmap;
     try {
-        const response = await fetch('/api/image-proxy?url=' + encodeURIComponent(card.img), { signal: abort.signal });
+        const url = card.originalImg && card.originalImg !== (card.sourceImg || card.img) ? card.originalImg :
+            '/api/image-proxy?url=' + encodeURIComponent(card.sourceImg || card.img);
+        const response = await fetch(url, { signal: abort.signal });
         if (!response.ok) throw new Error('Image download failed');
         const blob = await response.blob();
         bitmap = await createImageBitmap(blob);
@@ -45,7 +47,7 @@ export async function createPrintPdf(input, cardInfo, { loadImage = loadPrintIma
     const deck = validateDeck(input), slots = printSlots(deck);
     const cards = new Map(cardInfo.map(card => [card.code, card]));
     const codes = Object.keys(deck.cards), images = new Map(), failures = [];
-    const unknown = codes.filter(code => !cards.get(code)?.img);
+    const unknown = codes.filter(code => !(cards.get(code)?.originalImg || cards.get(code)?.img));
     if (unknown.length) throw new Error(`缺少卡图资料：${unknown.join('、')}`);
     let next = 0;
     await Promise.all(Array.from({ length: Math.min(3, codes.length) }, async () => {

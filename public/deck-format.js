@@ -63,8 +63,14 @@ export function makeTts(input, info) {
     let index = 100;
     for (const [code, quantity] of Object.entries(deck.cards)) {
         const card = info.get(code);
-        if (!card?.img) throw new Error(`${code} 缺少卡牌资料`);
-        const face = { FaceURL: card.img, BackURL: 'https://lycee-tcg.com/about/images/card.png',
+        if (!(card?.originalImg || card?.img)) throw new Error(`${code} 缺少卡牌资料`);
+        const absoluteImage = value => {
+            let url;
+            try { url = new URL(value); } catch { throw new Error('TTS 卡图须使用公开的 HTTPS 绝对地址'); }
+            if (url.protocol !== 'https:' || url.username || url.password || ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) throw new Error('TTS 卡图须使用公开的 HTTPS 绝对地址');
+            return url.href;
+        };
+        const face = { FaceURL: absoluteImage(card.originalImg || card.img), BackURL: absoluteImage(card.backImg || 'https://lycee-tcg.com/about/images/card.png'),
             NumWidth: 1, NumHeight: 1, BackIsHidden: true, UniqueBack: false, Type: 0 };
         custom[index] = face;
         for (let n = 0; n < quantity; n++) objects.push({ Name: 'CardCustom', Transform: { ...transform },
