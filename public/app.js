@@ -1,12 +1,15 @@
 import { validateDeck, compareCodes, parseDeckReference, makeTts } from './deck-format.js';
 import { initCommunity } from './community.bundle.js';
+import { initSearchFilters } from './search-filters.js';
 
 const $ = id => document.getElementById(id);
 const info = new Map();
 const DRAFT_KEY = 'lycee-toolbox:draft:v1';
 let deck = {}, revision = 0, searchPage = 1, searchPages = 0, searchSerial = 0, loadSerial = 0;
 let searchParams = new URLSearchParams();
+let searchLoading = false;
 let printExporting = false;
+let searchFilters;
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const total = () => Object.values(deck).reduce((a, b) => a + b, 0);
 function status(message, error = false) {
@@ -60,7 +63,7 @@ function renderDeck() {
             <span class="d-count">${deck[code]}</span>
             <button class="btn btn-outline btn-sm" data-code="${code}" data-delta="-1" aria-label="减少 ${code}">−</button>
             <button class="btn btn-outline btn-sm" data-code="${code}" data-delta="1" aria-label="增加 ${code}">+</button>
-            <button class="btn btn-outline btn-sm related-card" data-recommend="${code}">加入推荐</button>
+            <button class="btn btn-outline btn-sm related-card" data-recommend="${code}">加入检索</button>
         </div>`).join('') || '<div class="text-muted" style="padding:20px;text-align:center">卡组为空</div>';
 }
 function renderResults(cards) {
@@ -79,7 +82,7 @@ function renderResults(cards) {
             </div>
             <div class="card-right">
                 <div class="card-header"><span class="card-name">${escapeHtml(card.name)}</span><span class="card-code">${card.code}</span></div>
-                <button class="btn btn-outline btn-sm related-card" data-recommend="${card.code}">加入推荐</button>
+                <button class="btn btn-outline btn-sm related-card" data-recommend="${card.code}">加入检索</button>
                 <div class="text-muted">${escapeHtml(stats)}</div>
                 <div class="text-muted">${escapeHtml(card.version)}${card.trait ? ' · ' + escapeHtml(card.trait) : ''}</div>
                 ${card.translated ? '' : '<div class="text-muted">暂无中文译文，显示日文原文</div>'}
@@ -91,40 +94,38 @@ function renderResults(cards) {
     }).join('') || '<div class="text-muted" style="padding:24px;text-align:center">未找到卡牌</div>';
     $('searchResultArea').scrollTop = 0;
 }
+function updateSearchPagination() {
+    $('prevPage').disabled = searchLoading || !searchPages || searchPage <= 1;
+    $('nextPage').disabled = $('lastPage').disabled = searchLoading || !searchPages || searchPage >= searchPages;
+    $('pageJumpInput').disabled = $('pageJumpBtn').disabled = searchLoading || !searchPages;
+    $('pageJumpInput').max = searchPages || 1;
+}
 async function performSearch(page = 1, newSearch = true) {
-    if (newSearch) {
-        searchParams = new URLSearchParams();
-        for (const field of $('filterForm').querySelectorAll('[data-key]')) if (field.value.trim()) searchParams.set(field.dataset.key, field.value.trim());
-    }
+    const requestedFilters = newSearch ? searchFilters.getParams() : searchParams;
     const serial = ++searchSerial;
-    const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams(requestedFilters);
     params.set('page', page);
     status('搜索中…');
-    $('prevPage').disabled = $('nextPage').disabled = true;
+    searchLoading = true;
+    updateSearchPagination();
     try {
         const data = await request(`/api/cards?${params}`);
         if (serial !== searchSerial) return;
+        searchParams = requestedFilters;
+        searchFilters.markApplied(searchParams);
         remember(data.cards); renderResults(data.cards);
         searchPage = data.page; searchPages = data.pages;
         $('resultCount').textContent = `共 ${data.total} 张`;
         $('pageInfo').textContent = searchPages ? `${searchPage} / ${searchPages} 页` : '0 页';
-        $('prevPage').disabled = searchPage <= 1;
-        $('nextPage').disabled = searchPage >= searchPages;
+        $('pageJumpInput').value = searchPages ? searchPage : '';
+        $('pageJumpInput').setCustomValidity('');
         status(`找到 ${data.total} 张卡牌`);
     } catch (e) { if (serial === searchSerial) status(`搜索失败：${e.message}`, true); }
-}
-function field(key, label, options) {
-    const id = 'field_' + key;
-    return `<div class="filter-item"><label for="${id}">${label}</label>${options ?
-        `<select id="${id}" data-key="${key}"><option value="">全部</option>${options.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('')}</select>` :
-        `<input id="${id}" data-key="${key}" type="${/_(min|max)$/.test(key) ? 'number' : 'text'}" ${/_(min|max)$/.test(key) ? 'min="0" max="100"' : 'maxlength="200"'} placeholder="${label}">`}</div>`;
+    finally { if (serial === searchSerial) { searchLoading = false; updateSearchPagination(); } }
 }
 async function loadFilters() {
     const data = await request('/api/cards?facets=1');
-    $('filterForm').innerHTML = field('q', '关键词（中日文）') + field('code', '卡号') +
-        field('attribute', '属性（包含）', [...'雪月花宙日'].map(a => ({ value: a, label: a }))) +
-        data.facets.map(f => field(f.key, f.label, f.options)).join('') + field('effect', '效果关键词') + field('trait', '类型关键词') + field('illustrator', '画师') +
-        [['costTotal', '费用'], ['ap', 'AP'], ['dp', 'DP'], ['sp', 'SP'], ['dmg', 'DMG']].map(([key, label]) => field(`${key}_min`, `${label} 下限`) + field(`${key}_max`, `${label} 上限`)).join('');
+    searchFilters = initSearchFilters($('filterForm'), $('selectedFilters'), data);
 }
 async function applyDeck(input, cardInfo, expectedRevision, serial) {
     const next = validateDeck(input);
@@ -207,13 +208,26 @@ for (const id of ['searchResultArea', 'deckArea']) $(id).addEventListener('click
     if (button) modify(button.dataset.code, Number(button.dataset.delta));
 });
 $('searchBtn').addEventListener('click', () => performSearch());
-$('filterForm').addEventListener('keydown', e => { if (e.key === 'Enter') performSearch(); });
+$('filterForm').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input')) performSearch(); });
 $('clearSearchBtn').addEventListener('click', () => {
-    for (const field of $('filterForm').querySelectorAll('[data-key]')) field.value = '';
+    searchFilters?.clear();
     performSearch();
 });
 $('prevPage').addEventListener('click', () => performSearch(searchPage - 1, false));
 $('nextPage').addEventListener('click', () => performSearch(searchPage + 1, false));
+$('lastPage').addEventListener('click', () => performSearch(searchPages, false));
+$('pageJumpInput').addEventListener('input', () => $('pageJumpInput').setCustomValidity(''));
+$('pageJumpForm').addEventListener('submit', e => {
+    e.preventDefault();
+    if (searchLoading || !searchPages) return;
+    const input = $('pageJumpInput'), raw = input.value.trim(), page = Number(raw);
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(page) || page < 1 || page > searchPages) {
+        input.setCustomValidity(`请输入 1～${searchPages} 之间的整数页码`);
+        input.reportValidity();
+        return;
+    }
+    if (page !== searchPage) performSearch(page, false);
+});
 $('deckNameInput').addEventListener('input', changed);
 $('clearDeckBtn').addEventListener('click', () => { deck = {}; $('deckNameInput').value = ''; changed(); status('卡组已清空'); });
 $('saveDeckBtn').addEventListener('click', save);

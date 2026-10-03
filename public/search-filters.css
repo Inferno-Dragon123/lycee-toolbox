@@ -1,0 +1,41 @@
+.filter-item { min-width: 0; }
+.filter-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 32px; padding: 6px 10px; border: 1px solid #ccd7e6; border-radius: 24px; background: white; font: inherit; font-size: .85rem; text-align: left; cursor: pointer; }
+.filter-trigger-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.filter-trigger.has-selection { background: #eaf2ff; border-color: #2a7de1; color: #164f94; }
+.filter-trigger:focus-visible, .filter-option:focus-visible, .ability-row button:focus-visible, .filter-chip:focus-visible { outline: 2px solid #2a7de1; outline-offset: 2px; }
+.filter-range { display: flex; align-items: center; gap: 4px; border: 1px solid #ccd7e6; border-radius: 24px; background: white; padding: 0 5px; }
+.filter-item .filter-range input { min-width: 0; width: 50%; border: 0; padding: 6px 4px; border-radius: 16px; }
+.filter-range span { font-size: .8rem; color: #5b738f; }
+.filter-rules { margin-bottom: 10px; line-height: 1.5; }
+.selected-filters { padding: 10px 12px; background: #f7faff; border: 1px solid #e3eaf3; border-radius: 12px; margin-bottom: 12px; }
+.selected-filter-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; font-size: .85rem; }
+.filter-chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 160px; overflow-y: auto; }
+.filter-chip { background: #e6effd; color: #164f94; border: 1px solid #c8daf5; border-radius: 12px; padding: 4px 8px; max-width: 100%; font-size: .8rem; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.filter-popup { position: fixed; z-index: 100; display: flex; flex-direction: column; min-height: 120px; border: 1px solid #bfcfe2; border-radius: 14px; padding: 10px; background: white; box-shadow: 0 8px 32px #122c4d30; overflow: hidden; }
+.filter-popup[hidden], .filter-option[hidden] { display: none; }
+.filter-popup-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; font-size: .9rem; flex-shrink: 0; }
+.filter-option-search { width: 100%; border: 1px solid #ccd7e6; border-radius: 8px; padding: 8px; margin-bottom: 8px; flex-shrink: 0; }
+.filter-options { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.filter-option { display: flex; align-items: flex-start; gap: 6px; width: 100%; border: 0; background: white; color: #243b53; border-radius: 7px; padding: 8px 6px; text-align: left; font-size: .85rem; cursor: pointer; overflow-wrap: anywhere; }
+.filter-option small { display: block; font-size: .73rem; color: #5b738f; margin-top: 3px; }
+.option-check { flex-shrink: 0; width: 16px; visibility: hidden; }
+.filter-option.is-selected { background: #eaf2ff; color: #164f94; }
+.filter-option.is-selected .option-check { visibility: visible; }
+.filter-option:hover { background: #f0f5fc; }
+.filter-help { color: #5b738f; font-size: .75rem; line-height: 1.5; margin-bottom: 8px; flex-shrink: 0; }
+.ability-cascade { display: grid; grid-template-columns: minmax(130px, .8fr) minmax(0, 1.6fr); min-height: 0; overflow: hidden; }
+.ability-families, .ability-variants { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.ability-families { border-right: 1px solid #e3eaf3; padding-right: 6px; }
+.ability-variants { padding-left: 8px; }
+.ability-variant-title { font-size: .8rem; font-weight: 600; padding: 6px; color: #526a85; }
+.ability-row button { position: relative; width: 100%; padding: 8px 32px 8px 6px; text-align: left; border: 0; border-radius: 6px; background: white; font-size: .85rem; cursor: pointer; }
+.ability-row small { display: block; color: #5b738f; font-size: .7rem; overflow-wrap: anywhere; }
+.ability-row.is-active button { background: #eef4fc; color: #164f94; }
+.ability-count { position: absolute; right: 4px; top: 9px; color: #2a7de1; font-size: .7rem; }
+.search-pagination { margin-top: 12px; }
+#pageJumpInput { width: 72px; min-width: 0; padding: 8px; border: 1px solid #ccd7e6; border-radius: 8px; }
+@media (max-width: 600px) {
+    .ability-cascade { grid-template-columns: minmax(115px, .8fr) minmax(0, 1.3fr); }
+    .filter-popup { padding: 8px; }
+    .filter-option { font-size: .8rem; }
+}

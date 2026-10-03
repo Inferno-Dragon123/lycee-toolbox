@@ -1,17 +1,19 @@
 # Lycee Overture 工具箱
 
-[正式站点](https://lycee-toolbox.top/) · [功能预览](https://lycee-toolbox-git-codex-community-decks-inferno-dragon.vercel.app)
+[正式站点](https://lycee-toolbox.top/) · [功能预览](https://lycee-toolbox-git-codex-search-filters-inferno-dragon.vercel.app/)
 
 日式卡牌 Lycee Overture 的中文检索、组卡与卡组交流工具。前端为 HTML/JavaScript，API 部署在 Vercel；卡牌资料来自仓库 JSON，云端卡组与账号使用 Neon PostgreSQL / Neon Auth。
 
 ## 功能
+
+本分支包含待审核的 [多选检索与基本能力筛选](docs/search-filters.md) 及 [卡组检索升级](docs/deck-search.md)，均支持指定页跳转和最后一页。预览分支为 `codex/search-filters`，用户人工审核通过后再合并到正式分支。
 
 - **卡牌检索**：中日文关键词、完整卡号、属性、类别、稀有度、版本、费用与数值筛选。预制中文译文覆盖日文效果，新卡缺译时回退日文，无需在线翻译。
 - **组卡与分享**：本机草稿自动保存、官网卡组链接导入、本站分享链接、卡组 JSON 导入导出、TTS 导出。
 - **卡表 PDF**：A4 卡表，包含名称、图片和中文效果，适合查看与登记。
 - **打印卡图 PDF**：按卡组实际数量输出完整卡面，保留异画。A4 纵向、卡面 63 × 88 mm、7 mm 安全边距、1 mm 间距，每页 9 张，60 张共 7 页。打印时选择「实际大小／100%」，关闭「适合页面」。详见 [打印说明](docs/print-pdf.md)。
 - **卡组社区**：邮箱验证码登录、自定义昵称、主动发布、修改、下架和删除自己的卡组。未登录也可浏览、预览和导入。
-- **卡组推荐**：选择最多 10 种卡，按「全部包含／任意包含」检索玩家上传、官网玩家与官网赛事卡组。列表采用固定高度滚动和分页。
+- **卡组检索**：选择最多 10 种卡，按「全部包含／任意包含」检索玩家上传、官网玩家与官网赛事卡组；可叠加属性数量、系列单／混成和系列单会社多选条件。列表展示构成标签，采用固定高度滚动，支持指定页和末页。
 - **自动维护**：每天北京时间 04:20 依次抓取新卡、补译、更新 JSON 并推送，再增量同步官网卡组。
 
 ## 运行与测试

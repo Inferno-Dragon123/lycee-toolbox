@@ -82,7 +82,6 @@ try {
     assert.equal((await fetch(`${origin}/api/community?id=${id}`)).status, 404);
     await page.click('.community-item [data-action="publish"]');
     await page.waitForSelector('.community-item [data-action="unpublish"]');
-    await page.click('#recommendEnabled');
     const published = await (await fetch(`${origin}/api/community?id=${id}`)).json();
     const bases = new Set(Object.keys(published.cards).map(baseCode));
     const variant = [...byCode.keys()].find(code => code.length > 7 && bases.has(baseCode(code)));
@@ -90,6 +89,7 @@ try {
     await page.type('#field_code', variant); await page.click('#searchBtn');
     await page.waitForFunction(code => { const rows = document.querySelectorAll('#searchResultArea .search-card'); return rows.length === 1 && rows[0].dataset.card === code; }, {}, variant);
     await page.click(`#searchResultArea [data-recommend="${variant}"]`);
+    await page.click('#browseDecksBtn');
     await page.waitForFunction(base => document.querySelector('#selectedRecommendations').textContent.includes(base) && document.querySelectorAll('.community-item').length >= 2, {}, baseCode(variant));
     await fs.mkdir('temp/community', { recursive: true });
     await page.screenshot({ path: 'temp/community/verified-desktop.png', fullPage: true });
