@@ -8,7 +8,7 @@ import { parseOfficialList } from '../lib/official-deck-list.js';
 import { parseOfficialDeck } from '../lib/deck-import.js';
 import { upsertOfficial, syncOfficialCompositions } from '../lib/community-store.js';
 import { baseCode } from '../public/community-format.js';
-import { queueEntries, dueEntries, failEntry } from '../lib/official-sync-state.js';
+import { queueEntries, dueEntries, failEntry, initializeSourceState, nextDiscoveryPage, advanceSourcePage } from '../lib/official-sync-state.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
@@ -56,17 +56,20 @@ try {
         if (!result.rows[0].acquired) throw new Error('Another official deck sync is already running');
         if (!values.id) state = (await db.query('SELECT value FROM toolbox_sync_state WHERE key = $1', [stateKey])).rows[0]?.value || state;
     }
+    initializeSourceState(state);
     const persist = async () => {
         if (db && !values.id) await db.query(`INSERT INTO toolbox_sync_state (key, value) VALUES ($1, $2::jsonb)
             ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = now()`, [stateKey, JSON.stringify(state)]);
     };
     const cutoff = Number(values.days) ? new Date(Date.now() - Number(values.days) * 86400000).toISOString().slice(0, 10) : '';
     if (values.id) state.pending = [{ key: values.id, source: 'official' }];
-    // Revisit page 1 each run for new submissions, then resume older pages.
+    // The combined listing duplicates some rows and omits tournament decks.
+    // Revisit each independent source, then fairly resume their older pages.
     let pages = 0;
-    const discover = async page => {
+    const visitedRecent = new Set();
+    const discover = async ({ source, page }) => {
         const url = new URL('/deck/', origin);
-        url.search = new URLSearchParams({ _festa: '1', _user: '1', limit: '100', page, ...(code ? { word: code } : {}) }).toString();
+        url.search = new URLSearchParams({ [`_${source}`]: '1', limit: '100', page, ...(code ? { word: code } : {}) }).toString();
         const listing = parseOfficialList(await fetchPage(url.href), url.href);
         pages++;
         const entries = listing.entries.filter(entry => !entry.date || entry.date >= cutoff);
@@ -76,12 +79,15 @@ try {
             [entries.map(entry => entry.key)])).rows.map(row => [row.source_key, row.synced_at]) : []);
         queueEntries(state, entries, existing);
         const allOld = cutoff && listing.entries.every(entry => entry.date && entry.date < cutoff);
-        if (page === state.page) state.page = allOld ? 1 : listing.next || 1;
+        if (page === 1) visitedRecent.add(source);
+        advanceSourcePage(state, source, page, listing.next, allOld);
         await persist();
     };
     if (!values.id) {
-        await discover(1);
-        while (pages < Number(values.pages) && dueEntries(state, Number(values.limit)).length < Number(values.limit) && state.page > 1) await discover(state.page);
+        let request;
+        while ((request = nextDiscoveryPage(state, visitedRecent, Number(values.pages) - pages, Number(values.limit)))) {
+            await discover(request);
+        }
     }
     const batch = dueEntries(state, Number(values.limit));
     let successes = 0, failures = 0;
@@ -102,7 +108,8 @@ try {
         await persist();
     }
     const report = { completedAt: new Date().toISOString(), successes, failures, pages,
-        pending: state.pending.length, nextPage: state.page, days: Number(values.days), dryRun: values['dry-run'],
+        pending: state.pending.length, nextPage: state.page, nextPages: { ...state.sourcePages },
+        nextSource: state.nextSource, days: Number(values.days), dryRun: values['dry-run'],
         retrying: state.pending.filter(entry => entry.attempts).map(({ key, attempts, retryAt, error }) => ({ key, attempts, retryAt, error })) };
     state.lastRun = report;
     await persist();

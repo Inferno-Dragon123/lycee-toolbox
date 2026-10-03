@@ -4,7 +4,7 @@ import { parseArgs } from 'node:util';
 import dotenv from 'dotenv';
 import pg from 'pg';
 import { indexComposition } from '../lib/community-store.js';
-import { deckComposition } from '../lib/deck-composition.js';
+import { deckComposition, compatibleOfficialComposition } from '../lib/deck-composition.js';
 import { parseOfficialList } from '../lib/official-deck-list.js';
 
 const { values } = parseArgs({ options: {
@@ -21,17 +21,16 @@ const client = new pg.Client({ connectionString: url, connectionTimeoutMillis: 1
 try {
     await client.connect();
     await client.query('BEGIN');
-    const rows = (await client.query(`SELECT p.id, p.snapshot_id, p.source_key, d.cards FROM toolbox_publications p
+    const rows = (await client.query(`SELECT p.id, p.snapshot_id, p.source, p.source_key, d.cards FROM toolbox_publications p
         JOIN toolbox_decks d ON d.id = p.snapshot_id WHERE p.status <> 'deleted' ${values.apply ? 'FOR UPDATE OF p' : ''}`)).rows;
     const totals = { single: 0, mix: 0, unknown: 0, official: 0 };
     for (const row of rows) {
         const tag = official.get(row.source_key);
-        const cardTotal = Object.values(row.cards).reduce((sum, n) => sum + n, 0);
-        const validTag = tag && Object.values(tag.counts).reduce((sum, n) => sum + n, 0) === cardTotal ? tag : null;
+        const validTag = compatibleOfficialComposition(row.cards, tag) ? tag : null;
         const composition = validTag || deckComposition(row.cards);
         totals[composition.type]++;
         if (validTag) totals.official++;
-        if (values.apply) await indexComposition(client, row.id, row.cards, row.snapshot_id, validTag);
+        if (values.apply) await indexComposition(client, row.id, row.cards, row.snapshot_id, validTag, row.source !== 'community');
     }
     await client.query(values.apply ? 'COMMIT' : 'ROLLBACK');
     console.log(JSON.stringify({ mode: values.apply ? 'applied' : 'dry-run', publications: rows.length, ...totals }));

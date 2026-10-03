@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deckComposition, compositionSeries } from '../lib/deck-composition.js';
+import { deckComposition, compositionSeries, officialCostCounts, compatibleOfficialComposition } from '../lib/deck-composition.js';
 import { parseOfficialComposition, parseOfficialList } from '../lib/official-deck-list.js';
 
 const counts = (values = {}) => ({ 雪: 0, 月: 0, 花: 0, 宙: 0, 日: 0, 他: 0, ...values });
@@ -71,10 +71,34 @@ test('official tags reject partial, ambiguous, duplicate, noninteger, negative a
     for (const invalid of [valid.replace(' 他:0', ''), valid.replace('他:0', '花:0'),
         valid.replace('花:60', '花:-1'), valid.replace('花:60', '花:2.5'),
         valid.replace('花:60', '花:201'), valid.replace('花:60', '花:199 日:2'),
-        valid.replace('[MIX]', '[MIX][VA]'), valid.replace('[MIX]', ''), valid + ' extra',
-        valid.replace('雪:0 月:0', '雪:200 月:1')]) {
+        valid.replace('[MIX]', '[MIX][VA]'), valid.replace('[MIX]', ''), valid + ' extra']) {
         assert.equal(parseOfficialComposition(invalid), null, invalid);
     }
+});
+
+test('official color columns count each cost color, independently of face attributes', () => {
+    const costs = new Map([
+        ['LO-0001', { attribute: '雪', cost: '雪雪花花' }],
+        ['LO-0002', { attribute: '雪月花宙日', cost: '無無無無' }],
+        ['LO-0003', { attribute: '月', cost: '' }]
+    ]);
+    assert.deepEqual(officialCostCounts({ 'LO-0001-A': 4, 'LO-0002': 4, 'LO-0003': 52 }, costs),
+        { counts: counts({ 雪: 4, 花: 4, 他: 56 }), complete: true });
+    assert.equal(officialCostCounts({ 'LO-9999': 60 }, costs).complete, false);
+});
+
+test('official tags allow overlaps beyond 200 overall but enforce per-column bounds and snapshot consistency', () => {
+    assert(parseOfficialComposition('[MIX] 雪:60 月:60 花:60 宙:60 日:60 他:0'));
+    const cards = { 'LO-6000': 56, 'LO-0702': 4 };
+    const tag = parseOfficialComposition('[MIX] 雪:4 月:4 花:56 宙:0 日:0 他:0');
+    assert(compatibleOfficialComposition(cards, tag));
+    assert(!compatibleOfficialComposition(cards, { ...tag, counts: counts({ 花: 60 }) }), 'stale but sum-60 tag must fail');
+    assert(!compatibleOfficialComposition(cards, { ...tag, counts: counts({ 花: 61 }) }));
+    assert(!compatibleOfficialComposition(cards, { ...tag, counts: counts({ 花: 59 }) }));
+    assert(!compatibleOfficialComposition(cards, { ...tag, counts: counts({ 花: -1 }) }));
+    const unknown = { 'LO-9999': 60 };
+    assert(compatibleOfficialComposition(unknown, tag));
+    assert(!compatibleOfficialComposition(unknown, { ...tag, counts: counts({ 雪: 60, 月: 60, 花: 60, 宙: 60, 日: 60, 他: 1 }) }));
 });
 
 test('list extraction stores valid adjacent tags without changing entries without metadata', () => {

@@ -155,12 +155,19 @@ test('deck search composes tags, card queries and visibility, and counts/clamps 
         const empty = await listPublications({ series: ['AL'] }, db);
         assert.deepEqual({ items: empty.items, total: empty.total, pages: empty.pages, page: empty.page }, { items: [], total: 0, pages: 0, page: 1 });
         assert.equal((await listPublications({ mine: true, user: bob }, db)).total, 1);
-        const officialTags = { type: 'mix', series: [], counts: { 雪: 0, 月: 0, 花: 56, 宙: 0, 日: 0, 他: 4 } };
-        assert.equal(await syncOfficialCompositions([{ key: 'flowers-0', composition: officialTags }], db), 1);
-        const tagged = (await listPublications({ attributes: ['他'] }, db)).items[0];
+        const overlapDeck = { schemaVersion: 1, name: '双色费用', cards: { 'LO-6000': 56, 'LO-0702': 4 } };
+        const overlapId = await upsertOfficial({ key: 'overlap', source: 'official_user', deck: overlapDeck }, db);
+        const officialTags = { type: 'mix', series: [], counts: { 雪: 4, 月: 4, 花: 56, 宙: 0, 日: 0, 他: 0 } };
+        assert.equal(await syncOfficialCompositions([{ key: 'overlap', composition: officialTags }], db), 1);
+        const tagged = (await listPublications({ attributeRanges: { 月: { min: 4 } } }, db)).items[0];
+        assert.equal(tagged.id, overlapId);
         assert.deepEqual(tagged.composition.counts, officialTags.counts);
-        await upsertOfficial({ key: 'flowers-0', source: 'official_user', deck: { schemaVersion: 1, name: '花单 0', cards: { 'LO-6000': 60 } } }, db);
+        assert.equal(tagged.composition.attributesKnown, true, 'overlapping colors remain searchable');
+        await upsertOfficial({ key: 'overlap', source: 'official_user', deck: overlapDeck }, db);
         assert.equal((await getPublication(tagged.id, null, db)).composition.type, 'mix');
+        assert.equal(await syncOfficialCompositions([{ key: 'overlap', composition: { ...officialTags, counts: { 雪: 0, 月: 0, 花: 60, 宙: 0, 日: 0, 他: 0 } } }], db), 0);
+        const immediate = await upsertOfficial({ key: 'overlap-immediate', source: 'official_user', deck: overlapDeck, composition: officialTags }, db);
+        assert.deepEqual((await getPublication(immediate, null, db)).composition.counts, officialTags.counts);
         // Unknown card statistics must not match zero ranges by pretending to be empty.
         await upsertOfficial({ key: 'unknown', source: 'official_user', deck: { schemaVersion: 1, name: '缺资料', cards: { 'LO-9999': 60 } } }, db);
         assert.equal((await listPublications({ attributeRanges: { 雪: { max: 0 } } }, db)).total, 22);
