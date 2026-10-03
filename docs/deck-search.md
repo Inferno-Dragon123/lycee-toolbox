@@ -1,6 +1,6 @@
-# 卡组检索升级（预览待审核）
+# 卡组检索升级
 
-本功能在 `codex/search-filters`，只更新预览环境。正式分支及生产数据库等待用户验收后再升级。
+本功能先在 `codex/search-filters` 预览分支实现，于 2026-10-04 通过用户人工审核，纳入 `master` 正式发布。预览分支保留供后续试验；生产数据库需单独执行下述迁移和构成索引补建。
 
 ## 使用规则
 
@@ -40,8 +40,10 @@ node scripts/backfill-deck-compositions.js --env-file .env
 node scripts/backfill-deck-compositions.js --env-file .env --expect-host "已确认的direct主机" --apply
 ```
 
-可用 `--official-list PATH` 提供已有官网列表 HTML，只更新与已存卡组费用统计相符的标签。脚本不爬取详情、不创建发布记录、不修改卡组快照。生产升级时先迁移和补建索引，再部署新代码；未确认前不运行生产更新。
+可用 `--official-list PATH` 提供已有官网列表 HTML，只更新与已存卡组费用统计相符的标签。脚本不爬取详情、不创建发布记录、不修改卡组快照。生产升级时先核对生产 direct 连接、执行迁移并补建索引，再部署新代码；不能以预览库的执行记录代替生产升级检查。
 
 ## 验证
 
 `node --test tests/community.test.js tests/deck-composition.test.js tests/official-sync.test.js` 验证实际 SQL、可见性、组合筛选、属性 0、计数／末页、官网标签优先级和联动资格。`node tests/deck-search-browser.js` 用本地 PGlite 与 Chromium 验证桌面／390px手机、多选点击取消、多卡全部／任意、范围、指定跳页和已应用条件；无需邮件或云端测试账号。
+
+最新预览修复的既有记录为 46 项 JavaScript/SQL 测试、18 项针对性 Python 测试及构建通过。用户于 2026-10-04 完成预览审核，包含卡组已选条件栏和官网名称链接调整。2026-10-03 的官网标签补查数量属于预览库历史验证，不代表生产库当前数量。
