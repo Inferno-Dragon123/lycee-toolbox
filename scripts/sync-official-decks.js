@@ -6,7 +6,7 @@ import { parseArgs } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
 import { parseOfficialList } from '../lib/official-deck-list.js';
 import { parseOfficialDeck } from '../lib/deck-import.js';
-import { upsertOfficial } from '../lib/community-store.js';
+import { upsertOfficial, syncOfficialCompositions } from '../lib/community-store.js';
 import { baseCode } from '../public/community-format.js';
 import { queueEntries, dueEntries, failEntry } from '../lib/official-sync-state.js';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -70,6 +70,8 @@ try {
         const listing = parseOfficialList(await fetchPage(url.href), url.href);
         pages++;
         const entries = listing.entries.filter(entry => !entry.date || entry.date >= cutoff);
+        // Refresh listing tags even when the underlying deck was recently synced.
+        if (db) await syncOfficialCompositions(entries, db);
         const existing = new Map(db ? (await db.query('SELECT source_key, synced_at FROM toolbox_publications WHERE source_key = ANY($1::text[])',
             [entries.map(entry => entry.key)])).rows.map(row => [row.source_key, row.synced_at]) : []);
         queueEntries(state, entries, existing);

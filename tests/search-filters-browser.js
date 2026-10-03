@@ -19,7 +19,7 @@ try {
     await page.setRequestInterception(true);
     page.on('request', request => {
         const url = new URL(request.url());
-        if (url.pathname === '/api/community') return request.respond({ contentType: 'application/json', body: JSON.stringify(url.searchParams.has('session') ? { authenticated: false, profile: null } : { items: [], page: 1, hasMore: false }) });
+        if (url.pathname === '/api/community') return request.respond({ contentType: 'application/json', body: JSON.stringify(url.searchParams.has('session') ? { authenticated: false, profile: null } : url.searchParams.has('facets') ? { series: [] } : { items: [], page: 1, pages: 0, total: 0, hasMore: false }) });
         if (url.pathname.startsWith('/api/auth')) return request.respond({ contentType: 'application/json', body: 'null' });
         if (url.pathname === '/api/image-proxy') return request.abort();
         if (url.pathname === '/api/cards' && !url.searchParams.has('facets')) {

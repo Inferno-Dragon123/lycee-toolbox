@@ -334,18 +334,27 @@
 
     <section id="communityPanel" class="panel community-panel" aria-label="卡组社区">
         <div class="flex-wrap community-toolbar"><h2>卡组社区</h2><div class="flex-wrap"><span id="accountLabel" class="text-muted">未登录</span><button id="loginBtn" class="btn btn-outline">邮箱登录</button><button id="profileBtn" class="btn btn-outline" hidden>设置昵称</button><button id="logoutBtn" class="btn btn-outline" hidden>退出</button></div></div>
-        <div class="flex-wrap"><button id="browseDecksBtn" class="btn btn-primary">公开卡组</button><button id="myUploadsBtn" class="btn btn-outline">我的上传</button><button id="moderationBtn" class="btn btn-outline" hidden>内容管理</button><label class="flex-wrap"><input id="recommendEnabled" type="checkbox">开启卡组推荐</label></div>
-        <p class="text-muted" style="margin-top:10px">开启推荐后，点击卡牌旁的“加入推荐”，可以组合多张卡筛选卡组。</p>
-        <div id="recommendControls" class="recommend-controls" hidden>
+        <div class="flex-wrap"><button id="browseDecksBtn" class="btn btn-primary">公开卡组</button><button id="myUploadsBtn" class="btn btn-outline">我的上传</button><button id="moderationBtn" class="btn btn-outline" hidden>内容管理</button><input id="recommendEnabled" type="checkbox" checked hidden aria-hidden="true" tabindex="-1"></div>
+        <div id="recommendControls" class="recommend-controls">
+            <div class="flex-wrap"><h3>卡组检索</h3><span id="communityFilterState" class="text-muted" role="status">已应用</span></div>
+            <p class="text-muted community-filter-help">同一项多选匹配任意所选条件，不同项同时满足。属性选项表示至少包含 1 张该属性；数量范围可填写 0。点击卡牌旁的“加入检索”可添加卡号。</p>
+            <p class="text-muted community-filter-help">官网卡组优先采用官网标签；本站投稿按卡牌属性统计，多属性或无色卡牌归入“他”。</p>
+            <div class="community-filter-grid">
+                <label>来源 <select id="communitySource"><option value="">全部</option><option value="community">本站投稿</option><option value="official_tournament">官网赛事</option><option value="official_user">官网玩家</option></select></label>
+                <div id="communityDeckType" class="community-multiselect"></div>
+                <div id="communitySeries" class="community-multiselect"></div>
+                <div id="communityAttribute" class="community-multiselect"></div>
+            </div>
+            <details class="community-range-details"><summary>属性数量范围</summary><div id="communityAttributeRanges" class="community-range-grid"></div></details>
             <div class="flex-wrap"><strong>已选卡牌 <span id="recommendCount">0 / 10</span></strong><button id="clearRecommendations" class="btn btn-outline btn-sm">清空选择</button></div>
             <div id="selectedRecommendations" class="flex-wrap" style="margin:10px 0"></div>
-            <form id="recommendForm" class="flex-wrap"><input id="recommendCodesInput" placeholder="输入卡号，多个用逗号分隔" aria-label="添加推荐卡号" maxlength="200"><button class="btn btn-outline">添加卡号</button></form>
-            <div class="flex-wrap" style="margin-top:10px"><label>匹配方式 <select id="recommendMatch"><option value="all">同时包含全部所选卡牌</option><option value="any">包含任意一张所选卡牌</option></select></label><button id="showRecommendations" class="btn btn-primary">查看推荐</button></div>
+            <form id="recommendForm" class="flex-wrap"><input id="recommendCodesInput" placeholder="输入卡号，多个用逗号分隔" aria-label="添加检索卡号" maxlength="200"><button class="btn btn-outline">添加卡号</button></form>
+            <div class="flex-wrap community-search-actions"><label>匹配方式 <select id="recommendMatch"><option value="all">同时包含全部所选卡牌</option><option value="any">包含任意一张所选卡牌</option></select></label><button id="showRecommendations" class="btn btn-primary">检索</button><button id="communityClearFilters" class="btn btn-outline">清空条件</button></div>
         </div>
-        <div class="flex-wrap community-toolbar"><h2 id="communityHeading">公开卡组</h2><label>来源 <select id="communitySource"><option value="">全部</option><option value="community">本站投稿</option><option value="official_tournament">官网赛事</option><option value="official_user">官网玩家</option></select></label><button id="communityRefresh" class="btn btn-outline">刷新</button></div>
+        <div class="flex-wrap community-toolbar"><h2 id="communityHeading">公开卡组检索结果</h2><button id="communityRefresh" class="btn btn-outline">刷新结果</button></div>
         <p id="communityStatus" class="status" role="status"></p>
         <div id="communityResults" class="community-results" role="region" aria-labelledby="communityHeading" tabindex="0"></div>
-        <div class="flex-wrap"><button id="communityPrev" class="btn btn-outline" disabled>上一页</button><span id="communityPage"></span><button id="communityNext" class="btn btn-outline" disabled>下一页</button></div>
+        <div class="flex-wrap community-pagination"><button id="communityPrev" class="btn btn-outline" disabled>上一页</button><span id="communityPage"></span><button id="communityNext" class="btn btn-outline" disabled>下一页</button><button id="communityLast" class="btn btn-outline" disabled>最后一页</button><form id="communityPageForm" class="flex-wrap" novalidate><label for="communityPageInput">跳至</label><input id="communityPageInput" type="number" min="1" step="1" inputmode="numeric" aria-label="卡组检索指定页码" disabled><button id="communityPageJump" class="btn btn-outline" disabled>跳转</button></form></div>
     </section>
     <dialog id="loginDialog" aria-labelledby="loginTitle">
         <div class="dialog-heading"><h2 id="loginTitle">邮箱验证码登录</h2><button class="btn btn-outline" data-close-dialog="loginDialog" aria-label="关闭登录">关闭</button></div>

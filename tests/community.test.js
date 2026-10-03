@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { communityHandler } from '../api/community.js';
 import { baseCode, publicationInput, validateNickname, selectedCodes } from '../public/community-format.js';
-import { createPublication, updatePublication, listPublications, getPublication, upsertOfficial, getProfile, setProfile } from '../lib/community-store.js';
+import { createPublication, updatePublication, listPublications, getPublication, upsertOfficial, getProfile, setProfile, syncOfficialCompositions } from '../lib/community-store.js';
 import { parseOfficialList } from '../lib/official-deck-list.js';
 import { checkOrigin, currentUser } from '../lib/community-auth.js';
 import authHandler from '../api/auth.js';
@@ -25,7 +25,7 @@ test('publication validation groups artworks without mutating saved card identit
 });
 test('SQL publication lifecycle preserves independent ownership, visibility, versions and indexes', async () => {
     const pg = new PGlite();
-    for (const file of ['001_decks.sql', '002_community.sql', '003_profiles.sql']) await pg.exec(await fs.readFile(new URL('../migrations/' + file, import.meta.url), 'utf8'));
+    for (const file of ['001_decks.sql', '002_community.sql', '003_profiles.sql', '005_publication_compositions.sql']) await pg.exec(await fs.readFile(new URL('../migrations/' + file, import.meta.url), 'utf8'));
     // PGlite executes serially in one session; cloud integration covers real pg locking.
     const db = { async query(sql, params) { if (sql.includes('pg_advisory_xact_lock')) return { rows: [] }; return pg.query(sql, params); }, async connect() { return { query: this.query, release() {} }; } };
     try {
@@ -122,6 +122,49 @@ test('API rejects anonymous writes, cross-site requests, forged owners and malfo
     assert.deepEqual((await call(listHandler, { url: '/api/community?code=LO-6826&codes=LO-6826-A,LO-0001A&match=all' })).data.codes, ['LO-6826', 'LO-0001']);
     assert.equal((await call(listHandler, { url: '/api/community?codes=LO-6826,bad' })).statusCode, 400);
     assert.equal((await call(listHandler, { url: '/api/community?match=invalid' })).statusCode, 400);
+    const filtered = await call(listHandler, { url: '/api/community?deckType=single&deckType=mix&series=NAV&attribute=花&attr_雪_max=0' });
+    assert.deepEqual(filtered.data.deckTypes, ['single', 'mix']);
+    assert.deepEqual(filtered.data.series, ['NAV']);
+    assert.deepEqual(filtered.data.attributeRanges, { 雪: { min: null, max: 0 } });
+    for (const query of ['deckType=bad', 'series=bad', 'attribute=bad', 'attr_花_min=1.5', 'attr_花_min=61&attr_花_max=60', 'attr_花_min=-1', 'attr_雪_max=201']) {
+        assert.equal((await call(listHandler, { url: '/api/community?' + query })).statusCode, 400);
+    }
+    assert((await call(listHandler, { url: '/api/community?facets=1' })).data.series.some(s => s.value === 'NAV'));
+});
+
+test('deck search composes tags, card queries and visibility, and counts/clamps pages in SQL', async () => {
+    const pg = new PGlite();
+    for (const file of (await fs.readdir(new URL('../migrations/', import.meta.url))).filter(f => f.endsWith('.sql')).sort()) await pg.exec(await fs.readFile(new URL('../migrations/' + file, import.meta.url), 'utf8'));
+    const db = { async query(sql, params) { if (sql.includes('pg_advisory_xact_lock')) return { rows: [] }; return pg.query(sql, params); }, async connect() { return { query: this.query, release() {} }; } };
+    try {
+        for (let i = 0; i < 22; i++) await upsertOfficial({ key: 'flowers-' + i, source: 'official_user', deck: { schemaVersion: 1, name: '花单 ' + i, cards: { 'LO-6000': 60 } } }, db);
+        const mixed = await createPublication(alice, publicationInput({ name: '混成', cards: { 'LO-6000': 30, 'LO-4000': 30 } }), db);
+        const hidden = await createPublication(bob, publicationInput({ name: '未公开', cards: { 'LO-4000': 60 } }), db);
+        await updatePublication(bob, hidden.id, 1, 'unpublish', null, db);
+        const all = await listPublications({}, db);
+        assert.equal(all.total, 23); assert.equal(all.pages, 2); assert.equal(all.items.length, 20);
+        const last = await listPublications({ page: 999 }, db);
+        assert.equal(last.page, 2); assert.equal(last.items.length, 3); assert.equal(last.hasMore, false);
+        assert.equal((await listPublications({ deckTypes: ['single'] }, db)).total, 22);
+        assert.equal((await listPublications({ deckTypes: ['single', 'mix'], series: ['NAV'] }, db)).total, 22);
+        assert.equal((await listPublications({ attributes: ['雪'] }, db)).total, 1);
+        assert.equal((await listPublications({ attributes: ['雪', '花'] }, db)).total, 23);
+        assert.equal((await listPublications({ attributeRanges: { 雪: { max: 0 } } }, db)).total, 22);
+        const codeFilter = { codes: ['LO-6000-A', 'LO-4000'], deckTypes: ['mix'], attributeRanges: { 雪: { min: 30, max: 30 } } };
+        assert.deepEqual((await listPublications(codeFilter, db)).items.map(item => item.id), [mixed.id]);
+        const empty = await listPublications({ series: ['AL'] }, db);
+        assert.deepEqual({ items: empty.items, total: empty.total, pages: empty.pages, page: empty.page }, { items: [], total: 0, pages: 0, page: 1 });
+        assert.equal((await listPublications({ mine: true, user: bob }, db)).total, 1);
+        const officialTags = { type: 'mix', series: [], counts: { 雪: 0, 月: 0, 花: 56, 宙: 0, 日: 0, 他: 4 } };
+        assert.equal(await syncOfficialCompositions([{ key: 'flowers-0', composition: officialTags }], db), 1);
+        const tagged = (await listPublications({ attributes: ['他'] }, db)).items[0];
+        assert.deepEqual(tagged.composition.counts, officialTags.counts);
+        await upsertOfficial({ key: 'flowers-0', source: 'official_user', deck: { schemaVersion: 1, name: '花单 0', cards: { 'LO-6000': 60 } } }, db);
+        assert.equal((await getPublication(tagged.id, null, db)).composition.type, 'mix');
+        // Unknown card statistics must not match zero ranges by pretending to be empty.
+        await upsertOfficial({ key: 'unknown', source: 'official_user', deck: { schemaVersion: 1, name: '缺资料', cards: { 'LO-9999': 60 } } }, db);
+        assert.equal((await listPublications({ attributeRanges: { 雪: { max: 0 } } }, db)).total, 22);
+    } finally { await pg.close(); }
 });
 test('auth transport is same-origin and does not expose other managed auth routes', async () => {
     assert.throws(() => checkOrigin({ headers: { host: 'localhost', origin: 'https://evil.test' } }), { status: 403 });

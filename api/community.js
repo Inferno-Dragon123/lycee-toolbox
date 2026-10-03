@@ -3,6 +3,8 @@ import { createPublication, updatePublication, listPublications, getPublication,
 import { PUBLICATION_ID, sourceLabels, publicationInput, selectedCodes, validateNickname } from '../public/community-format.js';
 import { byCode, hydrate } from '../lib/catalog.js';
 import { body, method, fail } from '../lib/http.js';
+import { compositionSeries } from '../lib/deck-composition.js';
+import { parseDeckSearch } from '../lib/deck-search.js';
 
 const invalid = message => Object.assign(new Error(message), { status: 400 });
 export function communityHandler({ identify = currentUser, store = { createPublication, updatePublication, listPublications, getPublication, getProfile, setProfile } } = {}) {
@@ -12,6 +14,7 @@ export function communityHandler({ identify = currentUser, store = { createPubli
         try {
             const params = new URL(req.url, 'http://localhost').searchParams;
             if (req.method === 'GET') {
+                if (params.get('facets') === '1') return res.status(200).json({ series: compositionSeries });
                 if (params.has('session')) {
                     const user = await identify(req, res);
                     return res.status(200).json({ authenticated: Boolean(user), admin: Boolean(user?.admin), verified: Boolean(user?.emailVerified), profile: user ? await store.getProfile(user) : null });
@@ -27,13 +30,13 @@ export function communityHandler({ identify = currentUser, store = { createPubli
                     return res.status(200).json({ ...item, missing, cardInfo: Object.keys(item.cards).filter(code => byCode.has(code)).map(code => byCode.get(code)) });
                 }
                 const page = Number(params.get('page') || 1), source = params.get('source'), match = params.get('match') || 'all';
-                if (!Number.isSafeInteger(page) || page < 1 || page > 500) throw invalid('无效页码');
+                if (!Number.isSafeInteger(page) || page < 1 || page > 1000000) throw invalid('无效页码');
                 if (source && !Object.hasOwn(sourceLabels, source)) throw invalid('无效来源');
                 if (!['all', 'any'].includes(match)) throw invalid('无效匹配方式');
                 let codes;
                 try { codes = selectedCodes([...params.getAll('code'), ...params.getAll('codes').flatMap(value => value.split(','))]); }
                 catch (e) { throw invalid(e.message); }
-                return res.status(200).json(await store.listPublications({ page, codes, match, source, mine, moderation, user }));
+                return res.status(200).json(await store.listPublications({ page, codes, match, source, mine, moderation, user, ...parseDeckSearch(params) }));
             }
             checkOrigin(req);
             const user = await identify(req, res, true);
