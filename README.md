@@ -36,6 +36,12 @@ npm run test:update
 
 `npm test` 使用本地测试与 PGlite，不会发送登录邮件。真实邮箱收信及验证码输入由维护者亲测。需数据库的浏览器集成测试及其副作用见 [社区维护说明](docs/community-decks.md)。
 
+手机下拉框回归使用 Chrome 触屏模拟，验证多选、滚动、键盘造成的视口变化及异步选项返回后保持展开；社区接口使用本地测试数据，不访问云数据库或发送邮件。构建后运行：
+
+```powershell
+node tests/mobile-dropdown-browser.js
+```
+
 Windows 本机直连官网失败时，可在当前终端使用系统代理：
 
 ```powershell
@@ -124,9 +130,11 @@ node --env-file=.env.production scripts/migrate.js
 
 2026-10-04 已在独立生产库执行第五项迁移并补建707套公开卡组的构成索引：系列单388、混成319，296套使用已核验官网标签，其他使用本地计算；索引缺失或快照不一致数量为0。发布记录、分享快照和昵称数据的前后校验一致。补建默认只读评估，写入需同时指定 `--expect-host` 和 `--apply`；完整命令及标签校验规则见 [卡组检索维护说明](docs/deck-search.md#维护与发布)。新环境或之后升级仍需分别执行迁移与必要补建。
 
-## 腾讯云迁移进度（2026-10-04）
+## 腾讯云迁移进度（2026-10-05）
 
-**备案待审，正式站仍为 Vercel/Neon，`master` 为 `21ff737`。** 迁移分支 `codex/tencent-migration-20261004` 最新已验运行版本为 `1414ff0`，目标为腾讯 Lighthouse 轻量应用服务器，采用 Node.js 24 + Nginx + 本机 PostgreSQL + systemd，完整步骤见 [腾讯部署手册](docs/tencent-deployment.md)。该版本已通过完整 Ubuntu 构建、69 项 JavaScript、9 项 DNS 和 11 项 COS 测试并部署至生产演练；第二次预览 [Actions 37173420807](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/runs/37173420807) 成功，固定地址自动更新已验收，公网仍受备案拦截。
+**备案上次反馈仍在审核，正式站仍为 Vercel/Neon，`master` 已发布 `a0c81af`。** 迁移分支 `codex/tencent-migration-20261004` 采用腾讯 Lighthouse + Node.js 24 + Nginx + 本机 PostgreSQL + systemd，完整步骤见 [腾讯部署手册](docs/tencent-deployment.md)。2026-10-04 的已验运行版本 `df3d59a` 通过完整 Ubuntu 构建、70 项 JavaScript、9 项 DNS 和 11 项 COS 测试，生产演练及固定预览均部署该版本；[Actions 37176074999](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/runs/37176074999) 已验证增量上传、归档校验和自动预览更新。公网验收仍需备案放行。
+
+2026-10-05 已同步维护者测试通过并发布到主站的 TTS 卡牌尺寸及手机下拉框修复，保留迁移版登录适配与公开 HTTPS 卡图校验。同步版本通过本机构建、70 项 JavaScript/SQL 测试及触屏浏览器回归；另 1 项符号链接测试因 Windows 权限跳过，由 Ubuntu 发布构建执行。分支 push 自动更新独立腾讯预览，生产自动部署开关仍为关闭状态。
 
 - 腾讯 Ubuntu 26.04 上已部署生产演练，8 张业务表的行数及内容指纹与 Neon 一致，包括 707 条发布、683 份快照；5 个账号保留旧用户 ID 迁入本地 Auth，正式切换后需重新登录。
 - 分支自动部署首次 [Actions 运行 37171459769](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/runs/37171459769) 成功，生成[腾讯迁移预览](https://p-5b541628e000.preview.lycee-toolbox.top/)。预览数据库与 Auth 独立，含 706 套官网公开卡组、无迁入的真实账号。云防火墙已补放行 443；公网 HTTP 被 302 重定向到腾讯 `webblock`，HTTPS 握手被重置，已核实是域名拦截，仍需备案通过后完成公网验收。

@@ -64,3 +64,15 @@ test('TTS exports every copy with the matching artwork and handles a single card
     assert.equal(tts.ContainedObjects[4].CustomDeck[101].FaceURL, byCode.get('LO-6826-A').img);
     assert.equal(makeTts({ cards: { 'LO-6826': 1 } }, byCode).ObjectStates[0].Name, 'CardCustom');
 });
+test('TTS preserves the confirmed Lycee card size for decks, contained cards and single cards', () => {
+    // Dimensions from the user-provided tts.test/正确大小示例.json.
+    const expected = { scaleX: 2.484764, scaleY: 1, scaleZ: 2.484764 };
+    const assertSize = object => {
+        const { scaleX, scaleY, scaleZ } = object.Transform;
+        assert.deepEqual({ scaleX, scaleY, scaleZ }, expected);
+    };
+    const deck = makeTts({ cards: { 'LO-6826': 4, 'LO-6826-A': 1 } }, byCode).ObjectStates[0];
+    assertSize(deck);
+    deck.ContainedObjects.forEach(assertSize);
+    assertSize(makeTts({ cards: { 'LO-6826': 1 } }, byCode).ObjectStates[0]);
+});

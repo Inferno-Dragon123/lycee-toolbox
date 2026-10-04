@@ -58,7 +58,8 @@ export async function initCommunity(editor) {
         filters.set(name, state);
         function render() {
             const labels = state.options.filter(option => state.selected.has(option.value)).map(option => option.label);
-            host.innerHTML = `<span class="community-filter-label" id="${id}Label">${escape(label)}</span><button id="${id}Trigger" type="button" class="community-filter-trigger${labels.length ? ' has-selection' : ''}" aria-labelledby="${id}Label ${id}TriggerText" aria-expanded="false" aria-controls="${id}Options"><span id="${id}TriggerText">${escape(labels.join('、') || '全部')}</span><span aria-hidden="true">▾</span></button><div id="${id}Options" class="community-filter-options" role="group" aria-label="${escape(label)}，可多选" hidden>${state.options.map(option => `<button type="button" class="community-filter-option" data-deck-filter="${name}" data-value="${escape(option.value)}" aria-pressed="${state.selected.has(option.value)}"><span aria-hidden="true">✓</span>${escape(option.label)}</button>`).join('') || '<span class="community-filter-empty">正在读取选项…</span>'}</div>`;
+            const expanded = host.querySelector('.community-filter-trigger')?.getAttribute('aria-expanded') === 'true';
+            host.innerHTML = `<span class="community-filter-label" id="${id}Label">${escape(label)}</span><button id="${id}Trigger" type="button" class="community-filter-trigger${labels.length ? ' has-selection' : ''}" aria-labelledby="${id}Label ${id}TriggerText" aria-expanded="${expanded}" aria-controls="${id}Options"><span id="${id}TriggerText">${escape(labels.join('、') || '全部')}</span><span aria-hidden="true">▾</span></button><div id="${id}Options" class="community-filter-options" role="group" aria-label="${escape(label)}，可多选"${expanded ? '' : ' hidden'}>${state.options.map(option => `<button type="button" class="community-filter-option" data-deck-filter="${name}" data-value="${escape(option.value)}" aria-pressed="${state.selected.has(option.value)}"><span aria-hidden="true">✓</span>${escape(option.label)}</button>`).join('') || '<span class="community-filter-empty">正在读取选项…</span>'}</div>`;
         }
         state.render = render;
         state.updateOptions = options => { state.options = options; render(); };
@@ -76,7 +77,7 @@ export async function initCommunity(editor) {
             } else if (event.target.closest(`#${id}Trigger`)) {
                 const open = list.hidden;
                 closeDropdowns(); list.hidden = !open; trigger.setAttribute('aria-expanded', String(open));
-                if (open) list.querySelector('button')?.focus();
+                if (open && (event.detail === 0 || event.pointerType === 'mouse' || (!event.pointerType && matchMedia('(hover: hover) and (pointer: fine)').matches))) list.querySelector('button')?.focus({ preventScroll: true });
             }
         });
         host.addEventListener('keydown', event => {

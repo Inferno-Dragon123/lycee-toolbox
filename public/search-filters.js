@@ -43,14 +43,18 @@ export function initSearchFilters(root, selectedBar, { facets, abilityFacets }) 
     }
     function positionPopup() {
         const box = root.querySelector(`[data-filter="${active}"]`).getBoundingClientRect();
-        const width = Math.min(active === 'ability' ? 650 : 390, innerWidth - 24);
+        const viewport = window.visualViewport;
+        const left = viewport?.offsetLeft || 0, top = viewport?.offsetTop || 0;
+        const viewportWidth = viewport?.width || innerWidth, viewportHeight = viewport?.height || innerHeight;
+        const width = Math.min(active === 'ability' ? 650 : 390, viewportWidth - 24);
         popup.style.width = width + 'px';
-        popup.style.left = Math.max(12, Math.min(box.left, innerWidth - width - 12)) + 'px';
-        const below = innerHeight - box.bottom - 12, above = box.top - 12;
+        popup.style.left = Math.max(left + 12, Math.min(box.left, left + viewportWidth - width - 12)) + 'px';
+        const below = top + viewportHeight - box.bottom - 12, above = box.top - top - 12;
         const upwards = below < 220 && above > below;
-        const height = Math.min(450, Math.max(160, upwards ? above : below), innerHeight - 24);
+        const height = Math.min(450, Math.max(160, upwards ? above : below), viewportHeight - 24);
         popup.style.maxHeight = height + 'px';
-        popup.style.top = (upwards ? Math.max(12, box.top - Math.min(popup.scrollHeight, height) - 6) : Math.max(12, Math.min(box.bottom + 6, innerHeight - 172))) + 'px';
+        const targetTop = upwards ? box.top - popup.offsetHeight - 6 : box.bottom + 6;
+        popup.style.top = Math.max(top + 12, Math.min(targetTop, top + viewportHeight - popup.offsetHeight - 12)) + 'px';
     }
     function updateSelectionView() {
         for (const [key, values] of selections) {
@@ -100,7 +104,7 @@ export function initSearchFilters(root, selectedBar, { facets, abilityFacets }) 
             option(family.value, '任意代价／效果') + family.options.map(o => option(o.value, o.label, o.original)).join('');
         refreshPressed();
     }
-    function open(key) {
+    function open(key, focusOptions) {
         if (active === key) { close(); return; }
         close(); active = key;
         const isAbility = key === 'ability';
@@ -111,10 +115,12 @@ export function initSearchFilters(root, selectedBar, { facets, abilityFacets }) 
         root.querySelector(`[data-filter="${key}"]`).setAttribute('aria-expanded', 'true');
         if (isAbility) showAbility(activeAbility || abilityFacets[0].value); else refreshPressed();
         positionPopup();
-        (popup.querySelector('input') || popup.querySelector('[data-open-ability]')).focus({ preventScroll: true });
+        // Touch users can open the option search themselves without immediately raising the keyboard.
+        if (focusOptions) (popup.querySelector('input') || popup.querySelector('[data-open-ability]')).focus({ preventScroll: true });
     }
     root.addEventListener('click', event => {
-        const button = event.target.closest('[data-filter]'); if (button) open(button.dataset.filter);
+        const button = event.target.closest('[data-filter]');
+        if (button) open(button.dataset.filter, event.detail === 0 || event.pointerType === 'mouse' || (!event.pointerType && matchMedia('(hover: hover) and (pointer: fine)').matches));
     });
     root.addEventListener('input', updateSelectionView);
     popup.addEventListener('input', event => {
@@ -153,8 +159,12 @@ export function initSearchFilters(root, selectedBar, { facets, abilityFacets }) 
     });
     document.addEventListener('pointerdown', event => { if (active && !popup.contains(event.target) && !event.target.closest('[data-filter]')) close(); });
     document.addEventListener('keydown', event => { if (active && event.key === 'Escape') { event.preventDefault(); close(true); } });
-    window.addEventListener('resize', () => close());
-    window.addEventListener('scroll', event => { if (active && !popup.contains(event.target)) close(); }, true);
+    // A mobile keyboard or browser toolbar can resize/scroll the viewport after opening.
+    const reposition = () => { if (active) positionPopup(); };
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', event => { if (!popup.contains(event.target)) reposition(); }, true);
+    window.visualViewport?.addEventListener('resize', reposition);
+    window.visualViewport?.addEventListener('scroll', reposition);
     updateSelectionView();
     return { getParams, markApplied(params) { applied = params.toString(); updateSelectionView(); },
         clear() { close(); for (const values of selections.values()) values.clear(); for (const input of root.querySelectorAll('input')) input.value = ''; updateSelectionView(); } };
