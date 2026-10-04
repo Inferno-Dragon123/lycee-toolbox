@@ -1,0 +1,11 @@
+# lycee-managed: image maintenance timer v1
+[Unit]
+Description=Daily incremental card image mirror (05:20 Beijing)
+
+[Timer]
+OnCalendar=*-*-* 21:20:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

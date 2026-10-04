@@ -1,0 +1,12 @@
+# lycee-managed: daily backup timer v1
+[Unit]
+Description=Daily Lycee backup (03:40 Beijing)
+
+[Timer]
+OnCalendar=*-*-* 19:40:00 UTC
+Persistent=true
+RandomizedDelaySec=120
+Unit=lycee-backup.service
+
+[Install]
+WantedBy=timers.target

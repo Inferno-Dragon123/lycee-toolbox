@@ -1,0 +1,32 @@
+# lycee-managed: host config v1. Root-owned /etc/lycee/host.conf (0600).
+# This file is sourced by trusted management scripts; never copy a branch .env here.
+PRODUCTION_ORIGIN=https://lycee-toolbox.top
+PREVIEW_DOMAIN=preview.lycee-toolbox.top
+PREVIEW_MAX=2
+PREVIEW_TTL_DAYS=7
+PREVIEW_PORT_MIN=3101
+PRODUCTION_PORT=3100
+# Enable ONLY after final database sync, DNS and old write jobs have been cut over.
+MIGRATION_LIVE=0
+MAINTENANCE_ENABLED=0
+IMAGE_MIRROR_ENABLED=0
+# Existing certificate paths. A DNS-01 wildcard covers *.preview.lycee-toolbox.top.
+# PRODUCTION_ORIGIN may use http://IP:80 only during the isolated migration rehearsal.
+TLS_CERT=/etc/letsencrypt/live/lycee-toolbox.top/fullchain.pem
+TLS_KEY=/etc/letsencrypt/live/lycee-toolbox.top/privkey.pem
+PREVIEW_TLS_CERT=/etc/letsencrypt/live/lycee-toolbox.top/fullchain.pem
+PREVIEW_TLS_KEY=/etc/letsencrypt/live/lycee-toolbox.top/privkey.pem
+# Optional preview seeding: only a dedicated read-only official-public-data DB role.
+# No production app credential, auth tables or user records may be supplied here.
+PREVIEW_SEED_SOURCE_URL=
+# Independent preview-only SMTP account; blank disables preview email sign-in.
+PREVIEW_SMTP_HOST=
+PREVIEW_SMTP_PORT=465
+PREVIEW_SMTP_SECURE=true
+PREVIEW_SMTP_USER=
+PREVIEW_SMTP_PASS=
+PREVIEW_SMTP_FROM=
+# Optional backup offsite rsync target, e.g. backup@10.0.0.8:/srv/backups/lycee
+# Configure root's restricted key and known_hosts independently; no plaintext passwords.
+BACKUP_OFFSITE=
+BACKUP_RETENTION_DAYS=14

@@ -1,0 +1,11 @@
+# lycee-managed: preview expiry timer v1
+[Unit]
+Description=Daily Lycee preview cleanup
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

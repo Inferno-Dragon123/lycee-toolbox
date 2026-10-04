@@ -1,0 +1,11 @@
+# lycee-managed: official deck maintenance timer v1
+[Unit]
+Description=Daily Lycee deck sync (04:35 Beijing)
+
+[Timer]
+OnCalendar=*-*-* 20:35:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

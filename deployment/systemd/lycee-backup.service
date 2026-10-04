@@ -1,0 +1,12 @@
+# lycee-managed: database backup v1
+[Unit]
+Description=Lycee database backup with archive verification
+After=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/lycee/backup.sh
+UMask=0077
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=30min

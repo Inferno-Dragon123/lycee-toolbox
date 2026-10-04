@@ -1,0 +1,23 @@
+# lycee-managed: incremental card image mirror v1
+[Unit]
+Description=Mirror Lycee card images and thumbnails
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=lycee-assets
+Group=lycee-assets
+WorkingDirectory=/opt/lycee/instances/production/current
+Environment=IMAGE_STORAGE_DIR=/var/lib/lycee/images
+EnvironmentFile=-/etc/lycee/images.env
+ExecStart=/usr/local/lib/lycee/images.sh
+ReadWritePaths=/var/lib/lycee/images
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+Nice=10
+MemoryMax=384M
+CPUQuota=35%
+TimeoutStartSec=2h
+UMask=0022

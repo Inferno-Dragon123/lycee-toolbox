@@ -1,0 +1,9 @@
+# lycee-managed: preview expiry v1
+[Unit]
+Description=Expire inactive Lycee previews
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/lycee-admin cleanup --expired
+UMask=0077
+TimeoutStartSec=5min

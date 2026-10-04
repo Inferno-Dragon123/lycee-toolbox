@@ -1,0 +1,146 @@
+name: Tencent native deployment
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    types: [opened, synchronize, reopened]
+  delete:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Repository branch to deploy (master requires MIGRATION_LIVE=1)'
+        required: true
+        default: master
+  workflow_run:
+    workflows: ['Daily card and deck maintenance']
+    types: [completed]
+    branches: [master]
+
+permissions:
+  contents: read
+
+# Serialize builds/deploys/branch deletion for one small host; no abandoned rollout.
+concurrency:
+  group: tencent-native-host
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: >-
+      vars.TENCENT_DEPLOY_ENABLED == '1' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) &&
+      (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'master')) &&
+      (github.event_name != 'delete' || github.event.ref_type == 'branch')
+    runs-on: ubuntu-24.04
+    outputs:
+      target: ${{ steps.target.outputs.target }}
+      branch: ${{ steps.target.outputs.branch }}
+      ref_hex: ${{ steps.target.outputs.ref_hex }}
+      production: ${{ steps.target.outputs.production }}
+      deleting: ${{ steps.target.outputs.deleting }}
+    steps:
+      - name: Select branch without evaluating its name as shell code
+        id: target
+        env:
+          EVENT: ${{ github.event_name }}
+          PUSH_BRANCH: ${{ github.ref_name }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          DELETED_BRANCH: ${{ github.event.ref }}
+          REQUEST_BRANCH: ${{ inputs.branch }}
+          MIGRATION_LIVE: ${{ vars.MIGRATION_LIVE }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, os
+          event = os.environ['EVENT']
+          branch = ('master' if event == 'workflow_run' else
+                    os.environ['PR_BRANCH'] if event == 'pull_request' else
+                    os.environ['DELETED_BRANCH'] if event == 'delete' else
+                    os.environ['REQUEST_BRANCH'] if event == 'workflow_dispatch' else os.environ['PUSH_BRANCH'])
+          if not branch or '\n' in branch or '\r' in branch or len(branch) > 300:
+              raise SystemExit('Invalid branch ref')
+          production = branch == 'master'
+          if production and event == 'delete':
+              raise SystemExit('Production cannot be deleted')
+          if production and os.environ.get('MIGRATION_LIVE') != '1':
+              raise SystemExit('Production auto-deploy remains disabled until the final cutover sets MIGRATION_LIVE=1')
+          target = 'production' if production else 'p-' + hashlib.sha256(branch.encode()).hexdigest()[:12]
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as file:
+              file.write(f'target={target}\nbranch={branch}\nref_hex={branch.encode().hex()}\nproduction={str(production).lower()}\ndeleting={str(event == "delete").lower()}\n')
+          PY
+
+  deploy:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    # Configure production's environment to permit master only; preview uses its own SSH secrets.
+    environment: ${{ needs.prepare.outputs.production == 'true' && 'tencent-production' || 'tencent-preview' }}
+    steps:
+      - uses: actions/checkout@v4
+        if: needs.prepare.outputs.deleting != 'true'
+        with:
+          ref: ${{ needs.prepare.outputs.branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        if: needs.prepare.outputs.deleting != 'true'
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Build tested Linux runtime
+        if: needs.prepare.outputs.deleting != 'true'
+        id: build
+        run: |
+          sha=$(git rev-parse HEAD)
+          bash deployment/build-release.sh "$sha" "$RUNNER_TEMP/$sha.tar.gz"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Configure verified SSH
+        env:
+          SSH_KEY: ${{ secrets.TENCENT_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.TENCENT_SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.TENCENT_SSH_HOST }}
+          SSH_USER: ${{ secrets.TENCENT_SSH_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_SSH_PORT || '22' }}
+          PRODUCTION: ${{ needs.prepare.outputs.production }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          for key in ['SSH_KEY', 'KNOWN_HOSTS', 'SSH_HOST', 'SSH_USER']:
+              if not os.environ.get(key): raise SystemExit(f'{key} secret is not configured')
+          if not re.fullmatch(r'[a-zA-Z0-9_.-]+', os.environ['SSH_HOST']): raise SystemExit('Invalid SSH host')
+          if not re.fullmatch(r'[a-z_][a-z0-9_-]*', os.environ['SSH_USER']): raise SystemExit('Invalid SSH user')
+          expected='lycee-release' if os.environ['PRODUCTION']=='true' else 'lycee-deploy'
+          if os.environ['SSH_USER'] != expected: raise SystemExit(f'This environment must use the {expected} SSH account')
+          if not re.fullmatch(r'[0-9]{1,5}', os.environ['SSH_PORT']): raise SystemExit('Invalid SSH port')
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'lycee-ssh'; root.mkdir(mode=0o700)
+          (root/'key').write_text(os.environ['SSH_KEY']); (root/'key').chmod(0o600)
+          (root/'known_hosts').write_text(os.environ['KNOWN_HOSTS']); (root/'known_hosts').chmod(0o600)
+          (root/'config').write_text('Host lycee-host\n HostName '+os.environ['SSH_HOST']+'\n User '+os.environ['SSH_USER']+'\n Port '+os.environ['SSH_PORT']+'\n IdentityFile '+str(root/'key')+'\n UserKnownHostsFile '+str(root/'known_hosts')+'\n StrictHostKeyChecking yes\n BatchMode yes\n ConnectTimeout 20\n')
+          PY
+      - name: Deploy or remove isolated preview
+        env:
+          TARGET: ${{ needs.prepare.outputs.target }}
+          SHA: ${{ steps.build.outputs.sha }}
+          REF_HEX: ${{ needs.prepare.outputs.ref_hex }}
+          DELETING: ${{ needs.prepare.outputs.deleting }}
+          PRODUCTION: ${{ needs.prepare.outputs.production }}
+        run: |
+          ssh_config="$RUNNER_TEMP/lycee-ssh/config"
+          if [ "$DELETING" = true ]; then
+            ssh -F "$ssh_config" lycee-host sudo /usr/local/sbin/lycee-admin cleanup --target "$TARGET"
+            echo "Removed preview $TARGET" >> "$GITHUB_STEP_SUMMARY"
+          else
+            incoming=preview
+            if [ "$PRODUCTION" = true ]; then incoming=production; fi
+            scp -F "$ssh_config" "$RUNNER_TEMP/$SHA.tar.gz" "lycee-host:/var/lib/lycee/incoming/$incoming/$SHA.tar.gz"
+            ssh -F "$ssh_config" lycee-host sudo /usr/local/sbin/lycee-admin deploy --target "$TARGET" --sha "$SHA" --ref-hex "$REF_HEX" | tee "$RUNNER_TEMP/lycee-deploy-result"
+            python3 - <<'PY'
+          import json, os, pathlib
+          lines=(pathlib.Path(os.environ['RUNNER_TEMP'])/'lycee-deploy-result').read_text().splitlines()
+          result=next(json.loads(line) for line in reversed(lines) if line.startswith('{') and '"url"' in line)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as file:
+              file.write(f"Deployed `{os.environ['SHA'][:12]}`: [{result['url']}]({result['url']})\n\nPreview accounts and database are isolated from production.\n")
+          PY
+          fi
+      - name: Remove SSH credentials from runner
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/lycee-ssh"
