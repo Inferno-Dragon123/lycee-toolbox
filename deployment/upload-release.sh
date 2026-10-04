@@ -17,7 +17,7 @@ digest=${digest%% *}
 # Interrupted transfers retain a partial basis, including between workflow runs.
 for attempt in 1 2 3; do
   echo "Uploading verified runtime (attempt $attempt/3; unchanged blocks are reused)."
-  if timeout --signal=TERM --kill-after=30s 15m rsync --checksum --partial \
+  if timeout --signal=TERM --kill-after=30s 17m rsync --checksum --partial \
       --partial-dir=.rsync-partial --timeout=90 --perms --chmod=F600 \
       --stats -e "ssh -F \"$ssh_config\"" -- "$archive" "lycee-host:$cache"; then
     break
@@ -39,13 +39,13 @@ incoming=$1 target=$2 sha=$3 digest=$4
 cache="/var/lib/lycee/incoming/$incoming/runtime-cache.tar.gz"
 archive="/var/lib/lycee/incoming/$incoming/$sha.tar.gz"
 [[ -f "$cache" && ! -L "$cache" && ! -L "$archive" ]]
-actual=$(sha256sum -- "$cache")
-[[ "${actual%% *}" == "$digest" ]] || { echo 'Runtime checksum mismatch; refusing deployment.' >&2; exit 1; }
 umask 077
 staged="$archive.upload-$$"
 [[ ! -e "$staged" && ! -L "$staged" ]]
 trap 'rm -f -- "$staged"' EXIT
 cp --reflink=auto -- "$cache" "$staged"
+actual=$(sha256sum -- "$staged")
+[[ "${actual%% *}" == "$digest" ]] || { echo 'Runtime checksum mismatch; refusing deployment.' >&2; exit 1; }
 mv -Tf -- "$staged" "$archive"
 echo "Runtime upload SHA-256 verified: $digest"
 REMOTE

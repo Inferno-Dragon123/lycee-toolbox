@@ -72,7 +72,7 @@ sudo -u postgres pg_restore --exit-on-error --single-transaction --no-owner --no
 
 在 Ubuntu x86_64 的可信 CI/构建机运行，输出 Linux 原生依赖。`build-release.sh` 执行 `npm ci`、构建和 JavaScript 测试，再移除开发依赖；跳过 Puppeteer 浏览器下载。只打包白名单运行目录，包含 PDF 字体，排除 `.env*`，不收录工作区根目录的 SSH 私钥、备份和 `temp`。
 
-发布归档统一 tar 排序、时间戳和所有者，使用 `gzip -n --rsyncable`；`upload-release.sh` 通过已核验的 SSH 使用 rsync 增量传输，两个发布账户各保留一份 `incoming/<environment>/runtime-cache.tar.gz`，不随分支数增长。中断文件留在 `.rsync-partial/`，后续尝试可利用完整或部分基准；不使用 `--inplace`。每次最多三次 15 分钟传输尝试，工作流总上限 60 分钟；传输成功后核验远端完整 SHA-256，再原子生成部署管理器使用的 `<commit>.tar.gz`。校验或传输失败不触发部署，保留现有运行版本。此前跨境 scp 实测约 33 KiB/s，25 分钟上限不足以传完完整依赖包，因此改为可续传机制。
+发布归档统一 tar 排序、时间戳和所有者，使用 `gzip -n --rsyncable`；`upload-release.sh` 通过已核验的 SSH 使用 rsync 增量传输，两个发布账户各保留一份 `incoming/<environment>/runtime-cache.tar.gz`，不随分支数增长。中断文件留在 `.rsync-partial/`，后续尝试可利用完整或部分基准；不使用 `--inplace`。每次最多三次 17 分钟传输尝试，工作流总上限 60 分钟；传输成功后先复制到临时部署文件，对该文件核验完整 SHA-256，再原子生成部署管理器使用的 `<commit>.tar.gz`。校验或传输失败不触发部署，保留现有运行版本；低速冷上传耗尽预算后，下次运行仍可继续使用已保留的部分基准。此前跨境 scp 实测约 33 KiB/s，25 分钟上限不足以传完完整依赖包，因此改为可续传机制。`RELEASE.json` 保留实际构建时间，归档不保证同提交每次重建的字节完全一致。
 
 ```bash
 sha=$(git rev-parse HEAD)
