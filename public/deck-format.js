@@ -59,7 +59,8 @@ export function parseDeckReference(raw, ownOrigin) {
 export function makeTts(input, info) {
     const deck = validateDeck(input);
     const custom = {}, objects = [];
-    const transform = { posX: 0, posY: 1, posZ: 0, rotX: 0, rotY: 180, rotZ: 180, scaleX: 1, scaleY: 1, scaleZ: 1 };
+    // Match the established Lycee TTS card size for both the stack and every card.
+    const transform = { posX: 0, posY: 1, posZ: 0, rotX: 0, rotY: 180, rotZ: 180, scaleX: 2.484764, scaleY: 1, scaleZ: 2.484764 };
     let index = 100;
     for (const [code, quantity] of Object.entries(deck.cards)) {
         const card = info.get(code);

@@ -36,6 +36,12 @@ npm run test:update
 
 `npm test` 使用本地测试与 PGlite，不会发送登录邮件。真实邮箱收信及验证码输入由维护者亲测。需数据库的浏览器集成测试及其副作用见 [社区维护说明](docs/community-decks.md)。
 
+手机下拉框回归使用 Chrome 触屏模拟，验证多选、滚动、键盘造成的视口变化及异步选项返回后保持展开；社区接口使用本地测试数据，不访问云数据库或发送邮件。构建后运行：
+
+```powershell
+node tests/mobile-dropdown-browser.js
+```
+
 Windows 本机直连官网失败时，可在当前终端使用系统代理：
 
 ```powershell
