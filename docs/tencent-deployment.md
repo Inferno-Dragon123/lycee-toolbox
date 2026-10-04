@@ -1,6 +1,6 @@
 # 腾讯云原生部署与迁移运行手册
 
-本目录提供可执行的原生部署脚本：GitHub Actions 在 Linux 构建前端和运行依赖，通过 SSH 上传归档；服务器运行 Node.js、Nginx 和本机 PostgreSQL，由 systemd 管理。服务器无需 Docker、面板、GitHub git clone 或 Puppeteer 浏览器。
+本目录提供可执行的原生部署脚本：GitHub Actions 在 Linux 构建前端和运行依赖，通过 SSH/rsync 上传归档；服务器运行 Node.js、Nginx 和本机 PostgreSQL，由 systemd 管理。服务器无需 Docker、面板、GitHub git clone 或 Puppeteer 浏览器。
 
 2026-10-04 实测目标为腾讯 Lighthouse 轻量应用服务器，系统 Ubuntu 26.04 LTS x86_64、2 vCPU、约 3.6 GiB 可用物理内存、2 GiB Swap、约 69 GB 磁盘，运行 Node.js 24.21.0、PostgreSQL 18.6；源 Neon 也是 PostgreSQL 18.6。原生部署、生产演练和分支自动预览已执行；备案审核期间正式访问和写入仍为 Vercel/Neon，`master` 为 `21ff737`。
 
@@ -71,6 +71,8 @@ sudo -u postgres pg_restore --exit-on-error --single-transaction --no-owner --no
 ## 首次演练与发布
 
 在 Ubuntu x86_64 的可信 CI/构建机运行，输出 Linux 原生依赖。`build-release.sh` 执行 `npm ci`、构建和 JavaScript 测试，再移除开发依赖；跳过 Puppeteer 浏览器下载。只打包白名单运行目录，包含 PDF 字体，排除 `.env*`，不收录工作区根目录的 SSH 私钥、备份和 `temp`。
+
+发布归档统一 tar 排序、时间戳和所有者，使用 `gzip -n --rsyncable`；`upload-release.sh` 通过已核验的 SSH 使用 rsync 增量传输，两个发布账户各保留一份 `incoming/<environment>/runtime-cache.tar.gz`，不随分支数增长。中断文件留在 `.rsync-partial/`，后续尝试可利用完整或部分基准；不使用 `--inplace`。每次最多三次 15 分钟传输尝试，工作流总上限 60 分钟；传输成功后核验远端完整 SHA-256，再原子生成部署管理器使用的 `<commit>.tar.gz`。校验或传输失败不触发部署，保留现有运行版本。此前跨境 scp 实测约 33 KiB/s，25 分钟上限不足以传完完整依赖包，因此改为可续传机制。
 
 ```bash
 sha=$(git rev-parse HEAD)

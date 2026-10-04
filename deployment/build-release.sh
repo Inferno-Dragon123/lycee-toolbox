@@ -17,7 +17,12 @@ npm prune --omit=dev --no-audit --no-fund
 export LYCEE_RELEASE_SHA="$sha"
 node --input-type=module -e 'import fs from "node:fs"; fs.writeFileSync("RELEASE.json", JSON.stringify({sha:process.env.LYCEE_RELEASE_SHA,nodeMajor:24,platform:"linux",arch:"x64",builtAt:new Date().toISOString()})+"\n")'
 # Include only runtime roots; local credentials and temporary files stay outside.
-tar --exclude='__pycache__' --exclude='.env*' --exclude='*.log' -czf "$out" -- \
+# Stable metadata and restartable gzip blocks let rsync reuse unchanged runtime
+# dependencies across releases, rather than retransmitting the entire archive.
+tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
+  --mode='u+rw,go+r,go-w,a+X' \
+  --exclude='__pycache__' --exclude='.env*' --exclude='*.log' -cf - -- \
   api lib public scripts migrations data node_modules package.json package-lock.json \
-  lycee-japanese-database-final.json lycee-chinese-database-final.json RELEASE.json
+  lycee-japanese-database-final.json lycee-chinese-database-final.json RELEASE.json \
+  | gzip -n --rsyncable > "$out"
 echo "Runtime archive created: $(basename "$out")"

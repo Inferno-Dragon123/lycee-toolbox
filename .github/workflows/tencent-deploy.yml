@@ -75,7 +75,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.permitted == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 60
     # Configure production's environment to permit master only; preview uses its own SSH secrets.
     environment: ${{ needs.prepare.outputs.production == 'true' && 'tencent-production' || 'tencent-preview' }}
     steps:
@@ -132,9 +132,7 @@ jobs:
             ssh -F "$ssh_config" lycee-host sudo /usr/local/sbin/lycee-admin cleanup --target "$TARGET"
             echo "Removed preview $TARGET" >> "$GITHUB_STEP_SUMMARY"
           else
-            incoming=preview
-            if [ "$PRODUCTION" = true ]; then incoming=production; fi
-            scp -F "$ssh_config" "$RUNNER_TEMP/$SHA.tar.gz" "lycee-host:/var/lib/lycee/incoming/$incoming/$SHA.tar.gz"
+            bash deployment/upload-release.sh "$ssh_config" "$TARGET" "$SHA" "$RUNNER_TEMP/$SHA.tar.gz"
             ssh -F "$ssh_config" lycee-host sudo /usr/local/sbin/lycee-admin deploy --target "$TARGET" --sha "$SHA" --ref-hex "$REF_HEX" | tee "$RUNNER_TEMP/lycee-deploy-result"
             python3 - <<'PY'
           import json, os, pathlib
