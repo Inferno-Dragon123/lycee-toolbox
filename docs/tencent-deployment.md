@@ -2,7 +2,22 @@
 
 本目录提供可执行的原生部署脚本：GitHub Actions 在 Linux 构建前端和运行依赖，通过 SSH 上传归档；服务器运行 Node.js、Nginx 和本机 PostgreSQL，由 systemd 管理。服务器无需 Docker、面板、GitHub git clone 或 Puppeteer 浏览器。
 
-2026-10-04 迁移准备阶段实测目标为 Ubuntu 26.04 LTS x86_64、2 vCPU、约 3.6 GiB 可用物理内存、2 GiB Swap、约 69 GB 磁盘。基础软件已验证 Node.js 24.21.0、PostgreSQL 18.6；源 Neon 也是 PostgreSQL 18.6。以下完整自动部署、HTTPS 和定时任务仍须逐项验收，不能以基础软件安装代表正式切换。备案审核期间保留 Vercel 的正式访问和写入源，国内站先经 SSH 隧道演练。
+2026-10-04 实测目标为腾讯 Lighthouse 轻量应用服务器，系统 Ubuntu 26.04 LTS x86_64、2 vCPU、约 3.6 GiB 可用物理内存、2 GiB Swap、约 69 GB 磁盘，运行 Node.js 24.21.0、PostgreSQL 18.6；源 Neon 也是 PostgreSQL 18.6。原生部署、生产演练和分支自动预览已执行；备案审核期间正式访问和写入仍为 Vercel/Neon，`master` 为 `21ff737`。
+
+## 当前验收状态（2026-10-04）
+
+- 迁移工作树 `C:/Users/35057/.codex/worktrees/migration-20261004/lycee-toolbox`，分支 `codex/tencent-migration-20261004`，最新已验运行版本为 `1414ff0`。该版本已通过目标 Ubuntu 完整构建和 69 项 JavaScript、9 项 DNS、11 项 COS 测试，生产演练已部署完整提交 `1414ff028a63b0e61c3c4edccafddab1b75ee351`；SSH 隧道 `/api/health` 返回 200 且显示实际 revision `1414ff0`，生产演练、预览两项应用服务和持久镜像服务 active。第二次预览 [Actions 37173420807](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/runs/37173420807) 已成功，固定地址自动更新到该版本。
+- 首次提交 `2e101b0` 的 [Actions 运行 37171459769](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/runs/37171459769) 成功，地址为 [p-5b541628e000.preview.lycee-toolbox.top](https://p-5b541628e000.preview.lycee-toolbox.top/)。Lighthouse 云防火墙原未放行 443，现已补齐；公网 HTTP 返回 302，目标为 `https://dnspod.qcloud.com/static/webblock.html?d=p-5b541628e000.preview.lycee-toolbox.top`，HTTPS 握手被重置，已核实为腾讯域名拦截。**备案待通过，公网访问尚未验收；应用无需因此修改。**
+- 本机生产演练已恢复业务数据，8 张业务表的行数和内容指纹与 Neon 一致：707 条发布、683 份卡组快照；`1414ff0` 部署后复审 `changedTables=[]`，构成索引缺失／过期为 0，数据库约 13.1 MB。5 个原账号按旧用户 ID 导入本地 Auth，昵称、投稿和权限关联保留，旧会话不迁移，切换后须重新登录。
+- 预览已采用独立数据库与空 Auth，种子库只有 706 套官网公开卡组；无真实用户、社区投稿、私有快照或同步队列。预览不共用生产身份、认证密钥或数据库，只共用 Resend 发信凭据。
+- Resend 使用原 Sending access key，通过 SMTP 发送，发件地址为 `noreply@notifications.lycee-toolbox.top`；标题为「Lycee 工具箱迁移邮件测试」的真实测试邮件已送达。维护者随后在 `http://127.0.0.1:3310/` 亲测原邮箱 OTP 登录、刷新及原昵称／自己的卡组均正常。正式 Vercel/Neon 仍使用原 Neon 共享 SMTP。
+- 9,957 个卡图／卡背目标由持久 `lycee-initial-images.service` 按官网间隔镜像中，已 enabled/active，重启后根据断点继续，尚未全量完成。每日 05:20 的增量定时器已启用，实机验证检测到初始任务 active 时正常跳过。缺失本地图仍由现有回源路径处理，不把持久运行和全量下载混为完成。
+- 备份已在临时 PostgreSQL 数据库真实恢复验证，每次以 age 公钥加密，`BACKUP_REQUIRE_ENCRYPTION=1`，每日 03:40 的定时器已启用。已下载并验收的 `20261004T030403Z-135977.tar.age`（286,984 字节）在本机解密后验证四个文件的内部 SHA-256，恢复记录为 707 条发布、683 份快照；密文 SHA-256 为 `0534c60094ef56ae5a900a9f016dee21b3bcc97e2550cdec7fce82923135dead`。本机证据见 `D:/Backups/lycee-toolbox/20261004/verification-20261004T030403Z-135977.json`。后续部署又生成 `20261004T031824Z-141534` 备份，前一份用作稳定的恢复示例，不表示始终是最新备份。
+- COS 已按用户授权配置并真实验收：上海 `ap-shanghai` 标准桶 `lycee-bak-20261004-1458291053`，私有 ACL 和匿名 Deny，`lycee-backups/` 前缀 30 天生命周期；独立 API-only CAM 仅三项动作及该前缀，root 0600 凭据。服务器默认 endpoint 实测内部 DNS `169.254.0.47`。首份密文真实 PUT／HEAD／GET 及 Windows 从 COS 下载解密验证成功；启用 `BACKUP_COS_CONFIG` 后备份任务再次成功，`offsiteVerified=true`，每天 03:40 自动异机备份已启用。备份详情见 [备份说明](tencent-backups.md)。
+- COS 匿名／跨前缀／列桶请求实测 403，授权前缀三动作 200；下载密文解密后的 dump 又在独立临时 PG18 库真恢复，707 条发布、683 份快照、5 个 Auth 用户和 0 orphaned owners，恢复演练已清理且保留原生产演练库。
+- `certbot.timer` 已启用，三域名真实 `dry-run` 返回 exit 0，TXT 挑战均清理，deploy hook 的 `nginx -t`／reload 成功；正在使用的正式 YE1 证书仍有效至 2027-01-01，没有被 staging 证书替换。
+
+最终切换仍待备案、冻结旧写入、最终同步和内容审计、DNS 切换及唯一写入开关。以下为运维步骤和配置规范，初次检查及初始化命令不应在现有环境重复执行。
 
 ## 布局与隔离
 
@@ -23,9 +38,9 @@
 | 生产 SSH 账户 | `lycee-release`，只能通过受限管理器部署 live `master` |
 | 预览 SSH 账户 | `lycee-deploy`，只能部署/清理预览，服务器硬拒绝生产、初始化和全局清理 |
 
-分支名按 UTF-8 做 SHA-256，取前 12 位形成稳定地址 `https://p-<hash>.preview.lycee-toolbox.top`。最多保留两个预览，各 `MemoryMax=384M`、`CPUQuota=30%`；第三个预览拒绝部署并提示先删除。分支删除会清理服务、数据库、环境密钥、发布目录和运行用户；七天未部署的预览由过期清理定时器删除。预览图片采用自己的同源 URL，但读取共享图片目录，不额外复制卡图。
+分支名按 UTF-8 做 SHA-256，取前 12 位形成稳定地址 `https://p-<hash>.preview.lycee-toolbox.top`。最多保留两个预览，各 `MemoryMax=384M`、`CPUQuota=30%`；第三个预览拒绝部署并提示先删除。管理器提供清理服务、数据库、环境密钥、发布目录和运行用户的功能；GitHub 分支删除事件要待工作流进入默认 `master` 后验收，当前只验收了真实 push 部署。七天未部署的预览由过期清理定时器处理。预览图片采用自己的同源 URL，但读取共享图片目录，不额外复制卡图。
 
-预览初始为空库，可选用专门的只读来源角色和 `scripts/seed-preview.js` 复制官网公开卡组、它们引用的快照和构成索引。该脚本要求 `DEPLOYMENT_KIND=preview`、目标数据库名符合上述规则、来源与目标不同，并以来源只读事务读取。用户投稿、身份、昵称、匿名分享和同步队列都不迁入预览。生产 `.env` 不会被复制到预览；预览只可使用独立 SMTP 账号，默认不配置 SMTP，浏览和健康检查仍正常，发验证码会提示尚未配置发信服务。
+预览初始为空库，可用专门的只读来源角色和 `scripts/seed-preview.js` 复制官网公开卡组、它们引用的快照和构成索引；当前预览已种入 706 套官网公开卡组。该脚本要求 `DEPLOYMENT_KIND=preview`、目标数据库名符合上述规则、来源与目标不同，并以来源只读事务读取。用户投稿、身份、昵称、匿名分享和同步队列都不迁入预览。生产 `.env` 不会被复制到预览；SMTP 仅按白名单显式配置，当前预览与演练共用 Resend 发信凭据，这不构成独立 SMTP 账号。未配 SMTP 的新预览仍可浏览和通过健康检查，发验证码则提示发信服务未配置。
 
 ## 初始化与检查
 
@@ -85,13 +100,21 @@ Nginx 保留外部 Host（含隧道端口）、设置 `X-Real-IP` 和 scheme、�
 
 DNSPod 的现有记录应先导出留存。备案审核通过和演练验收前，不让国内新服务器与旧 Vercel A 记录混合轮询。正式域名仍为 `lycee-toolbox.top`，预览为 `*.preview.lycee-toolbox.top`。使用 DNS-01 申请覆盖 apex 及预览通配符的证书，不需要提前把业务 A 记录指到新服务器；DNS API 凭据仅保存于 root 私有目录，不进入应用和 Actions 归档。证书及密钥路径填写到 `host.conf` 的生产/预览 TLS 字段。
 
-证书续期 hook 必须先检查证书文件及 `nginx -t`，成功后 reload。通配符需 DNS-01，不能改用 HTTP-01 获取通配符。DNSPod API 与 ACME hook 由本项目独立运维脚本维护，首次签发和模拟续期成功后才启用定时续期；云主机安全组/防火墙的 80、443 放行由运维核对，5432 和应用端口继续仅 loopback。
+证书续期 hook 必须先检查证书文件及 `nginx -t`，成功后 reload。通配符需 DNS-01，不能改用 HTTP-01 获取通配符。DNSPod API 与 ACME hook 由本项目独立运维脚本维护；`certbot.timer` 已启用，以下真实模拟续期已成功（exit 0）：
 
-正式切换顺序：完成备案和邮件验证 → 暂停旧站写入及旧数据库同步 → 最终业务/身份同步并审计 → 更新 `SITE_ORIGIN`、图片 origin 和证书 → 国内 HTTPS 验收 → 切换 DNS → 确认只剩一个写入源 → 最后把服务器 `MIGRATION_LIVE=1` 与 GitHub variable `MIGRATION_LIVE=1` 打开。演练已产生的数据不直接覆盖旧站最终增量；新站开始真实写入后，回切 Vercel 必须处理新增数据。
+```bash
+sudo certbot renew --cert-name lycee-toolbox.top --dry-run --run-deploy-hooks --no-random-sleep-on-renew
+```
+
+三个域名的 TXT 挑战全部清理，hook `nginx -t` 和 reload 成功；正式 YE1 证书仍在使用，有效至 2027-01-01，staging 模拟没有替换正式证书。这不代表待备案域名的公网业务已可访问。云主机安全组/防火墙的 80、443 放行由运维核对，5432 和应用端口继续仅 loopback。
+
+正式切换顺序：完成备案和邮件验证 → 合入迁移分支并确认 Vercel 已部署兼容旧站的版本（两个 `MIGRATION_LIVE` 仍为 0）→ 暂停旧站写入及旧数据库同步 → 最终业务/身份同步并审计 → 更新 `SITE_ORIGIN`、图片 origin 和证书 → 国内 HTTPS 验收 → 切换 DNS → 确认只剩一个写入源 → 最后把服务器 `MIGRATION_LIVE=1` 与 GitHub variable `MIGRATION_LIVE=1` 打开。演练已产生的数据不直接覆盖旧站最终增量；新站开始真实写入后，回切 Vercel 必须处理新增数据。
+
+旧站冻结须在含 `lib/http.js` 维护开关的新版本已部署后，设置 Vercel Production 的 `MIGRATION_READ_ONLY=1` 并重新部署，核验保存／社区／登录 POST 返回维护 503、读取仍正常。冻结期间暂时停用 `Daily card and deck maintenance` 工作流，取消或等候已在执行的旧 sync，确认没有写入后再导出最终快照。切换完成、正式 `MIGRATION_LIVE=1` 条件生效且旧数据库 Secret 移除后，再恢复该工作流的卡库抓取和翻译；本机数据库同步定时器在这之后启用。不能仅设置环境变量而不确认旧部署代码已支持，也不能只停新任务而遗漏运行中的旧任务。
 
 ## GitHub 自动部署
 
-工作流为 `.github/workflows/tencent-deploy.yml`。启用 repository variable `TENCENT_DEPLOY_ENABLED=1` 后，push `master` 部署生产，其他分支 push 和同仓库 PR 生成稳定预览；fork PR 跳过含密钥的任务，不使用 `pull_request_target`，不发送 PR 评论。成功地址写入 GitHub Job Summary。删除分支触发对应预览清理，预览最多两个，自动过期七天。
+工作流为 `.github/workflows/tencent-deploy.yml`。设计为启用 repository variable `TENCENT_DEPLOY_ENABLED=1` 后，push `master` 部署生产，其他分支 push 和同仓库 PR 生成稳定预览；fork PR 跳过含密钥的任务，不使用 `pull_request_target`，不发送 PR 评论。成功地址写入 GitHub Job Summary。迁移分支真实 push 已通过；生产开关仍关闭，工作流尚未进入默认 `master`，分支删除自动清理与 `workflow_run` 触发须合入后分别验收，不能记为当前已运行。
 
 配置两个 GitHub Environments：
 
@@ -102,13 +125,15 @@ DNSPod 的现有记录应先导出留存。备案审核通过和演练验收前�
 
 生产还受服务器 `MIGRATION_LIVE=1` 开关和 SSH 身份/`master` ref guard 限制。即使预览工作流把参数改成 `--target production`，服务器也会拒绝。
 
-每日卡库抓取/翻译/提交继续在 GitHub 运行。GitHub 的 `GITHUB_TOKEN` 推送不会自动引发另一个 push 工作流，因此新增受限 `workflow_run`：只接受已有 `Daily card and deck maintenance` 的成功 `master` 完成事件，重新 checkout 可信 `master` 构建部署，不使用前一个运行上传的代码或 artifact。切换时旧工作流的数据库 sync job 须在 `MIGRATION_LIVE=1` 后跳过，删除旧 `PRODUCTION_SYNC_DATABASE_URL` CI Secret；保留 cards job。服务器不需从 GitHub clone，也不将本机数据库暴露给 GitHub。
+每日卡库抓取/翻译/提交继续在 GitHub 运行。GitHub 的 `GITHUB_TOKEN` 推送不会自动引发另一个 push 工作流，因此代码提供受限 `workflow_run`：只接受已有 `Daily card and deck maintenance` 的成功 `master` 完成事件，重新 checkout 可信 `master` 构建部署，不使用前一个运行上传的代码或 artifact；该事件要在工作流进入默认分支后验收。本轮迁移分支已为旧数据库 sync job 加入 `vars.MIGRATION_LIVE != '1'` 条件，当前正式 `master` 尚未含此迁移改动；切换前须确认条件已正式部署、关闭旧 Neon sync 并删除 `PRODUCTION_SYNC_DATABASE_URL` CI Secret，保留 cards job。服务器不需从 GitHub clone，也不将本机数据库暴露给 GitHub。
 
 ## 备份、更新与日志
 
-`lycee-backup.timer` 每天北京时间 03:40 左右执行完整本地 PostgreSQL 备份和 root 私有配置归档。每份数据库 dump 都在临时数据库真实恢复并查询发布/快照表，再计算 SHA-256；本地保留 14 天。备份包含本地 Auth 和私有配置，目录权限 0700，必须按秘密管理。
+`lycee-backup.timer` 已启用，每天北京时间 03:40 左右执行完整本地 PostgreSQL 备份和 root 私有配置归档。每份数据库 dump 都在临时数据库真实恢复并查询发布/快照表，再计算 SHA-256 和 age 加密；`BACKUP_REQUIRE_ENCRYPTION=1` 缺公钥时会失败。服务器本地明文备份文件权限 0600、目录 0700，保留 14 天，异机只发送密文及 SHA-256 sidecar；备份不包含卡图。服务器 `/etc/lycee/backup-recipient.txt` 仅保存公钥，恢复私钥 `backup-recovery.agekey` 只在维护者电脑，详情见 [备份与恢复](tencent-backups.md)。
 
-`BACKUP_OFFSITE` 可配置独立机器的 `user@host:/absolute/path`，使用 root 专用受限 SSH key 和核验的 known_hosts；rsync 后在异机执行 `sha256sum --check`，成功才记 `offsite-verified`。未配置时输出 `offsiteVerified=false`，不能当作完成异机备份。当前对象存储/COS 的自动备份目标尚未选择，不声称已自动上传或加密；首次可由维护者安全下载一份已验证备份到本机，另外设计异机/COS 的权限、加密和恢复演练。
+当前异机目标为已授权且已验收启用的上海私有 COS，`BACKUP_COS_CONFIG=/etc/lycee/cos-backup.json`。首份 `20261004T030403Z-135977` 经真实上传、HEAD／GET 校验和 Windows 直接从 COS 下载解密验收；随后 `systemctl start lycee-backup.service` 生成 `20261004T032916Z-145357`，密文 SHA-256 为 `727db36ac0bef147bba7058151d9db2cbaa5e83d1bdab57b940adcf731af4951`，返回 `offsiteVerified=true`。每日备份定时器已启用，不需重复确认；新环境配置步骤见 [COS 备份说明](tencent-backups.md)。
+
+`BACKUP_OFFSITE` 另支持独立机器的 `user@host:/absolute/path`，使用 root 专用受限 SSH key 和核验的 known_hosts；rsync 密文和 sidecar 后在异机执行 `sha256sum --check`，成功才记 `offsite-verified`。该 SSH 目标属于可选替代，不代替当前已启用的 COS。
 
 ```bash
 sudo /usr/local/lib/lycee/backup.sh
@@ -120,12 +145,12 @@ sudo systemctl list-timers 'lycee-*'
 
 ```bash
 sudo systemctl enable --now lycee-maintenance.timer
-# 初次全量图片抓取是长任务，默认 10 秒官网间隔，有断点和失败退避；不阻塞部署。
-sudo -u lycee-assets env IMAGE_STORAGE_DIR=/var/lib/lycee/images \
-  /usr/local/bin/node /opt/lycee/instances/production/current/scripts/mirror-card-images.js --all
+# 持久初次镜像已经启用，查看进度；不要另启动第二个全量进程。
+sudo systemctl status lycee-initial-images.service
+sudo journalctl -u lycee-initial-images.service -n 50 --no-pager
 ```
 
-卡图定时维护先创建 root 私有 `/etc/lycee/images.env`，填入 `IMAGE_MIRROR_ENABLED=1`；`lycee-images.timer` 每天北京时间 05:20 左右只补最多 100 张。更新原图用显式 `--refresh-code`/`--refresh-all` 和稳定 `--refresh-revision`，不要把每日增量任务改成反复全量刷新。状态与锁在图片目录内，预览和应用只读。首轮全量需要较长时间，可通过 systemd 的受限持久进程管理，查看进度后逐步完成。
+卡图定时维护读取 root 私有 `/etc/lycee/images.env` 中的 `IMAGE_MIRROR_ENABLED=1`；`lycee-images.timer` 已启用，每天北京时间 05:20 左右只补最多 100 张。实机已验证初始任务 active 时增量正常跳过，避免竞争。`/etc/systemd/system/lycee-initial-images.service` 已 enabled/active，开机恢复断点；全量尚未结束。更新原图用显式 `--refresh-code`/`--refresh-all` 和稳定 `--refresh-revision`，不要把每日增量任务改成反复全量刷新。状态与锁在图片目录内，预览和应用只读。
 
 ```bash
 sudo systemctl enable --now lycee-images.timer
@@ -148,4 +173,4 @@ sudo /usr/local/sbin/lycee-admin check
 - [systemd.service 官方手册源](https://github.com/systemd/systemd/blob/main/man/systemd.service.xml) 和 [资源限制官方手册源](https://github.com/systemd/systemd/blob/main/man/systemd.resource-control.xml)（ExecStart、重启、MemoryMax、CPUQuota）。官网 man 页面本次返回 HTTP 418，已改查官方仓库原文。
 - [Let's Encrypt：挑战类型](https://letsencrypt.org/docs/challenge-types/)（DNS-01 与通配符）。
 
-本机 Bash 语法、Python 编译和 YAML 解析用于脚本静态检查；完整安装、PostgreSQL 真实恢复、SSH 权限边界、Nginx 测试、预览两个实例、健康失败回滚、SMTP、证书续期与 GitHub Actions 运行必须在目标环境验收。尚未通过的项目应保留在交接记录中，不能以静态检查冒充线上完成。
+本机 Bash 语法、Python 编译和 YAML 解析用于脚本静态检查。目标 Ubuntu 完整构建及 69 项 JavaScript、9 项 DNS、11 项 COS 测试已通过；生产演练部署的 `1414ff0` 健康检查显示实际提交。数据指纹、本地 Auth 用户 ID、真实邮件及原账号 OTP、独立预览、两次 Actions、备份真实恢复、COS 实际上传／回读及电脑从 COS 下载解密均已验收；持久镜像和每日加密异机备份已启用，增量跳过初始任务与证书真实续期模拟也已实机核验。完整 9,957 个图片目标仍在后台镜像。云防火墙 443 已放行，公网域名拦截已定位；正式切换仍待备案通过、最终快照同步与审计、合入 `master`、DNS 及唯一写入开关。最新接续状态见 [社区维护记录](community-decks.md)。

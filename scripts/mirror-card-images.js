@@ -179,6 +179,6 @@ export async function main(args = process.argv.slice(2)) {
     console.log(JSON.stringify(report));
     return report.failed ? 1 : 0;
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && process.argv[1] !== '-' && import.meta.url === pathToFileURL(await fs.realpath(process.argv[1])).href) {
     main().then(code => { process.exitCode = code; }).catch(e => { console.error('Image mirror failed:', e.message); process.exitCode = 1; });
 }

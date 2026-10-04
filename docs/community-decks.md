@@ -1,5 +1,26 @@
 # 卡组社区开发与维护
 
+## 腾讯云迁移接续（2026-10-04，尚未正式切换）
+
+当前正式站仍在 Vercel/Neon，`master` 为 `21ff737`；已发布的检索升级不受本次迁移演练影响。国内服务器备案待审，迁移分支不合入 `master`，不接管正式写入；演练库允许登录和测试。最新原生运维步骤见 [腾讯部署手册](tencent-deployment.md)。
+
+- 工作树 `C:/Users/35057/.codex/worktrees/migration-20261004/lycee-toolbox`，分支 `codex/tencent-migration-20261004`，最新已验运行版本为 `1414ff0`；目标 Ubuntu 已通过完整构建及 69 项 JavaScript、9 项 DNS、11 项 COS 测试。生产演练已部署 `1414ff028a63b0e61c3c4edccafddab1b75ee351`，SSH 隧道健康检查为 200、revision 为实际 `1414ff0`；两项应用服务和持久镜像 active。第二次预览 [Actions 37173420807](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/runs/37173420807) 已成功，固定 URL 自动更新到该版本；首次预览发布提交为 `2e101b0`。原默认目录和其他工作树不得作为迁移脚本及运行状态的替代依据。
+- 腾讯 Lighthouse 轻量应用服务器采用 Ubuntu 26.04 LTS x86_64，已运行 Node.js 24.21.0、PostgreSQL 18.6、Nginx/systemd，并完成生产演练与独立预览部署。`1414ff0` 部署后复审 8 张业务表与 Neon 行数、指纹仍一致（`changedTables=[]`）：限额 4、快照 683、迁移 5、昵称 3、卡号索引 13,780、构成索引 707、发布 707、同步状态 1；构成缺失／过期 0，数据库约 13.1 MB。这是演练审计，不代表之后旧站新增数据已同步。
+- 5 个账号按旧用户 ID 导入本地 Better Auth，保留昵称、投稿和权限关联；旧 Neon 会话不搬迁，正式切换后用户重新登录。预览 Auth 为空，种子库仅 706 套官网公开卡组，不含真实账号、用户投稿、私有分享和同步队列。
+- 第一次 [腾讯部署 Actions 运行 37171459769](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/runs/37171459769) 成功生成 [p-5b541628e000.preview.lycee-toolbox.top](https://p-5b541628e000.preview.lycee-toolbox.top/)。Lighthouse 云防火墙已补放行 443；公网 HTTP 返回 302 到 `https://dnspod.qcloud.com/static/webblock.html?d=p-5b541628e000.preview.lycee-toolbox.top`，HTTPS 握手被重置，已定位为腾讯域名拦截，不需要修应用。仍须备案通过后完成公网验收，该链接不能作为公开可用的依据。
+- 演练已通过 Resend SMTP 发送，使用原 Sending access key，发件地址 `noreply@notifications.lycee-toolbox.top`；维护者确认「Lycee 工具箱迁移邮件测试」真实送达，并随后在 `http://127.0.0.1:3310/` 亲测原邮箱 OTP 登录、刷新、原昵称和自己的卡组均正常。预览仅共用发送凭据，数据库、认证密钥及用户身份独立，不能描述成独立 SMTP 账号。Vercel/Neon 正式环境仍为旧 Neon 共享 SMTP。
+- 图片镜像包含 9,957 个目标（卡面及卡背），`/etc/systemd/system/lycee-initial-images.service` 已 enabled/active，按官网请求间隔慢速抓取，重启恢复断点，尚未全部完成。`lycee-images.timer` 已启用（北京时间 05:20），实机增量任务检测到 initial active 后正常跳过。
+- `lycee-backup.timer` 已启用（北京时间 03:40），每次 pg_dump 后在临时数据库真实恢复验证，再用 age 公钥加密，`BACKUP_REQUIRE_ENCRYPTION=1`。服务器仅有 `backup-recipient.txt` 公钥，恢复私钥只在维护者本机 `D:/Backups/lycee-toolbox/20261004/backup-recovery.agekey`；本机密钥和备份均不入 Git。
+- 已下载并验收的密文 `20261004T030403Z-135977.tar.age` 为 286,984 字节，SHA-256 `0534c60094ef56ae5a900a9f016dee21b3bcc97e2550cdec7fce82923135dead`，位于 `D:/Backups/lycee-toolbox/20261004/`。官方 age v1.3.2 经发布资产 SHA-256 核对后用于本机解密，四个归档文件的内部校验均通过，恢复记录为 707 条发布／683 份快照；证据 `verification-20261004T030403Z-135977.json` 同目录。后续演练部署前另生成 `20261004T031824Z-141534`，恢复示例仍用已本机验收的一份。
+- COS 已创建并启用自动备份：桶 `lycee-bak-20261004-1458291053`，`ap-shanghai`／STANDARD，私有 ACL 与原生匿名 Deny；`lycee-backups/` 前缀 30 天生命周期。独立 API-only CAM 仅 PutObject／HeadObject／GetObject、只限该桶前缀，凭据 root:root 0600；Lighthouse 默认 COS endpoint 实测内部 DNS `169.254.0.47`。首份 `030403` 密文真实 PUT／HEAD／GET 成功，Windows 直接从 COS 下载、解密及内部校验通过，对应备份已真实恢复 707 条发布／683 份快照。
+- `BACKUP_COS_CONFIG` 已启用；实机手动启动备份服务生成 `20261004T032916Z-145357`，密文 SHA-256 `727db36ac0bef147bba7058151d9db2cbaa5e83d1bdab57b940adcf731af4951`，`offsiteVerified=true`。每日北京时间 03:40 的 timer 已启用；本次创建和启用均已授权并验收，无需重复确认。流程见 [备份说明](tencent-backups.md)。
+- COS 权限真验收：匿名对象、备份凭据跨前缀及 ListBucket 均 403，授权前缀 PUT／HEAD／GET 为 200。从 COS 下载、电脑解密的 dump 经 SSH stdin 真恢复到独立临时 PG18 库，707 条发布／683 份快照／5 个 Auth 用户／0 orphaned owners；临时库已清理，原演练库未改。证据 `D:/Backups/lycee-toolbox/20261004/cos-20261004T030403Z-135977/restore-verification.json`。
+- `certbot.timer` 已启用；实机 `certbot renew --cert-name lycee-toolbox.top --dry-run --run-deploy-hooks --no-random-sleep-on-renew` 三域名成功（exit 0），TXT 全部清理，hook `nginx -t`／reload 成功。正式 YE1 证书仍有效至 2027-01-01，没有替换为 staging 证书；该结果不改变待备案的公网域名拦截。
+- 分支 push 已实际部署成功。分支删除自动清理和 `workflow_run` 必须待工作流进入默认 `master` 后验收；迁移分支的旧 sync job 已加 `vars.MIGRATION_LIVE != '1'` 防双写条件，当前正式代码尚未切换，不描述为条件早已在线启用。
+- 正式切换待办依次为：备案通过、冻结旧写入、最终业务及身份同步、内容和权限审计、国内 HTTPS 验收、DNS 切换、确认唯一写入源、启用服务器及 GitHub 的 `MIGRATION_LIVE=1`。卡库抓取/翻译继续在 GitHub，数据库同步转服务器须在旧 Neon sync 停止后启用。
+
+下方 2026-10-04 正式发布记录指 Vercel/Neon 上的检索升级；更早“仅预览／等待审核”等段落保留为历史事实。迁移状态以上方本段和对应手册为准。
+
 ## 正式发布接续（2026-10-04，审核已通过）
 
 用户已明确确认预览人工审核完成，并要求合并至主分支、更新 README。此前“等待审核／不得发布”边界已由此次明确授权替代，本次发布范围包含多选卡牌与基本能力、卡组组合检索、官网标签与双来源分页，以及 `82385df` 的四项反馈修复。

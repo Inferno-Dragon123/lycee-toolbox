@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { CARD_BACK_SOURCE, withCardImageUrls, parseImagePath, imageKeyForSource, inspectImage, readStoredImage } from '../lib/card-images.js';
 import { createOfficialClient, mirrorImages, atomicStore, acquireMirrorLock } from '../scripts/mirror-card-images.js';
@@ -31,6 +34,21 @@ test('mirror recovery handles reused PIDs after reboot while excluding a live wo
     await assert.rejects(fs.stat(file), { code: 'ENOENT' });
     await fs.writeFile(file, JSON.stringify({ pid: process.pid, host: 'other-server', token: 'other', bootId: 'previous-boot' }));
     await assert.rejects(acquireMirrorLock(directory, { bootId: 'current-boot' }), /owns the lock/);
+});
+
+test('mirror dry-run CLI executes through a release symlink without downloading or writing images', async t => {
+    const directory = await fixture(t), link = path.join(directory, 'mirror-current.js');
+    try { await fs.symlink(fileURLToPath(new URL('../scripts/mirror-card-images.js', import.meta.url)), link, 'file'); }
+    catch (error) {
+        if (process.platform === 'win32' && ['EPERM', 'EACCES'].includes(error.code)) { t.skip('Windows file symlink privilege unavailable'); return; }
+        throw error;
+    }
+    const catalog = path.join(directory, 'catalog.json'), images = path.join(directory, 'planned-images');
+    await fs.writeFile(catalog, JSON.stringify({ cards: [card] }));
+    const { stdout } = await promisify(execFile)(process.execPath, [link, '--catalog', catalog, '--directory', images, '--dry-run', '--all']);
+    const result = JSON.parse(stdout.trim());
+    assert.equal(result.total, 2); assert.equal(result.planned, 2); assert.equal(result.downloaded, 0);
+    await assert.rejects(fs.stat(images), { code: 'ENOENT' });
 });
 test('runtime URLs preserve canonical sources, distinguish thumbnails and originals, and export public HTTPS TTS faces and back', () => {
     const mapped = withCardImageUrls(card, { env: { IMAGE_STORAGE_DIR: path.resolve('temp/images'),

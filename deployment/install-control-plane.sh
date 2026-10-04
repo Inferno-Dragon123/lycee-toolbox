@@ -8,6 +8,13 @@ source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 for command in node nginx psql setfacl; do command -v "$command" >/dev/null || { echo "$command missing; finish bootstrap first." >&2; exit 1; }; done
 [[ $(node -p 'process.versions.node.split(".")[0]') == 24 ]] || { echo 'Node24 required.' >&2; exit 1; }
 [[ $(psql --version) == *' 18.'* ]] || { echo 'PostgreSQL18 client required.' >&2; exit 1; }
+# Windows git archive may export CRLF without the project's explicit .py attributes.
+for source in "$source_dir"/*.py; do
+  if head -n 1 "$source" | grep -q $'\r'; then
+    echo 'Control Python shebangs require LF; re-export with the project attributes.' >&2
+    exit 1
+  fi
+done
 check_target() {
   local target=$1 marker=$2
   [[ ! -L "$target" ]] || { echo "Refusing existing symlink: $target" >&2; exit 1; }

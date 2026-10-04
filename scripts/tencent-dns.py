@@ -237,7 +237,7 @@ class DnsPod:
         try:
             result = self.call('DescribeRecord', {'Domain': DOMAIN, 'RecordId': created_id})
         except ApiError as error:
-            if error.code == 'ResourceNotFound.NoDataOfRecord':
+            if error.code in ('ResourceNotFound.NoDataOfRecord', 'InvalidParameter.RecordIdInvalid'):
                 return False
             raise
         info = result.get('RecordInfo')

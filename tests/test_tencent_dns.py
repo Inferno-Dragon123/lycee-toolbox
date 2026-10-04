@@ -90,8 +90,11 @@ class DnsTests(unittest.TestCase):
                                                        'Remark': d.challenge_remark(name, TOKEN)}}, {}])
         self.assertTrue(client.cleanup_challenge(42, name, TOKEN))
         self.assertEqual(client.call.call_args.args, ('DeleteRecord', {'Domain': d.DOMAIN, 'RecordId': 42}))
-        client.call = Mock(side_effect=d.ApiError('ResourceNotFound.NoDataOfRecord'))
-        self.assertFalse(client.cleanup_challenge(42, name, TOKEN))
+        for code in ('ResourceNotFound.NoDataOfRecord', 'InvalidParameter.RecordIdInvalid'):
+            with self.subTest(missing_record_response=code):
+                client.call = Mock(side_effect=d.ApiError(code))
+                self.assertFalse(client.cleanup_challenge(42, name, TOKEN))
+                client.call.assert_called_once_with('DescribeRecord', {'Domain': d.DOMAIN, 'RecordId': 42})
 
     def test_api_diagnostics_hide_payloads_and_credentials(self):
         raw = json.dumps({'Response': {'Error': {'Code': 'AuthFailure.SignatureFailure', 'Message': 'private-challenge example-secret'}}}).encode()

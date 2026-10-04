@@ -2,7 +2,7 @@
 
 [正式站点](https://lycee-toolbox.top/) · [功能预览](https://lycee-toolbox-git-codex-search-filters-inferno-dragon.vercel.app/)
 
-日式卡牌 Lycee Overture 的中文检索、组卡与卡组交流工具。前端为 HTML/JavaScript，API 部署在 Vercel；卡牌资料来自仓库 JSON，云端卡组与账号使用 Neon PostgreSQL / Neon Auth。
+日式卡牌 Lycee Overture 的中文检索、组卡与卡组交流工具。当前正式版的前端为 HTML/JavaScript，API 部署在 Vercel；卡牌资料来自仓库 JSON，云端卡组与账号使用 Neon PostgreSQL / Neon Auth。腾讯云迁移正在独立分支演练，尚未接管正式流量和写入。
 
 ## 功能
 
@@ -120,9 +120,20 @@ npm run db:migrate
 node --env-file=.env.production scripts/migrate.js
 ```
 
-2026-09-29 生产初始化已执行四项迁移并启用独立 Auth。当前邮件服务仍为 Neon 共享 SMTP，尚未配置自有 SMTP；正式邮箱投递仍需人工验收，后续应按 [Neon 生产检查清单](https://neon.com/docs/auth/production-checklist) 配置自有发信服务。生产管理员 ID 尚未指定。
+2026-09-29 生产初始化已执行四项迁移并启用独立 Auth。当前正式 Vercel/Neon 环境仍使用 Neon 共享 SMTP，尚未切换发信服务；腾讯云迁移演练已使用 Resend SMTP，真实测试邮件送达及原账号 OTP 登录均由维护者亲测通过，两者须分别看待。Neon 正式环境后续配置要求见 [Neon 生产检查清单](https://neon.com/docs/auth/production-checklist)。生产管理员 ID 尚未指定。
 
 2026-10-04 已在独立生产库执行第五项迁移并补建707套公开卡组的构成索引：系列单388、混成319，296套使用已核验官网标签，其他使用本地计算；索引缺失或快照不一致数量为0。发布记录、分享快照和昵称数据的前后校验一致。补建默认只读评估，写入需同时指定 `--expect-host` 和 `--apply`；完整命令及标签校验规则见 [卡组检索维护说明](docs/deck-search.md#维护与发布)。新环境或之后升级仍需分别执行迁移与必要补建。
+
+## 腾讯云迁移进度（2026-10-04）
+
+**备案待审，正式站仍为 Vercel/Neon，`master` 为 `21ff737`。** 迁移分支 `codex/tencent-migration-20261004` 最新已验运行版本为 `1414ff0`，目标为腾讯 Lighthouse 轻量应用服务器，采用 Node.js 24 + Nginx + 本机 PostgreSQL + systemd，完整步骤见 [腾讯部署手册](docs/tencent-deployment.md)。该版本已通过完整 Ubuntu 构建、69 项 JavaScript、9 项 DNS 和 11 项 COS 测试并部署至生产演练；第二次预览 [Actions 37173420807](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/runs/37173420807) 成功，固定地址自动更新已验收，公网仍受备案拦截。
+
+- 腾讯 Ubuntu 26.04 上已部署生产演练，8 张业务表的行数及内容指纹与 Neon 一致，包括 707 条发布、683 份快照；5 个账号保留旧用户 ID 迁入本地 Auth，正式切换后需重新登录。
+- 分支自动部署首次 [Actions 运行 37171459769](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/runs/37171459769) 成功，生成[腾讯迁移预览](https://p-5b541628e000.preview.lycee-toolbox.top/)。预览数据库与 Auth 独立，含 706 套官网公开卡组、无迁入的真实账号。云防火墙已补放行 443；公网 HTTP 被 302 重定向到腾讯 `webblock`，HTTPS 握手被重置，已核实是域名拦截，仍需备案通过后完成公网验收。
+- Resend 真实测试邮件已送达；维护者在 SSH 隧道站点亲测原邮箱 OTP 登录、刷新及原昵称／自己的卡组均正常。预览仅共用发信凭据，不共用账号、密钥或数据库。9,957 个卡图／卡背镜像目标已交给开机续传的 `lycee-initial-images.service`，正按官网间隔慢速抓取，全量尚未完成；每日增量定时器已启用，初始任务运行时会跳过增量。
+- 每次数据库备份已执行真实恢复验证、age 公钥加密和上海私有 COS 上传校验，03:40 的自动备份已授权启用。首份 COS 密文经真实 PUT／HEAD／GET 验证，并从维护者电脑下载、解密及内部校验通过；启用配置后再次手动运行备份任务成功，`offsiteVerified=true`。服务器只有公钥，恢复私钥只在维护者电脑。证书续期真实 `dry-run` 和 Nginx deploy hook 已通过，续期定时器已启用；恢复步骤见 [备份说明](docs/tencent-backups.md)。
+
+最终切换仍需备案通过、冻结旧写入、最终同步及审计、DNS 切换和唯一写入源确认，再启用生产自动部署开关；当前不把迁移分支合入 `master`。
 
 ## 每日维护与手动更新
 
@@ -152,11 +163,13 @@ npm run decks:sync -- --limit 100 --pages 3
 - [社区实现、权限与历史开发记录](docs/community-decks.md)
 - [卡库更新与翻译脚本](scripts/README_update_and_translate.md)
 - [数据库容量评估](docs/storage-capacity.md)
+- [腾讯云原生部署与迁移运行手册](docs/tencent-deployment.md)
+- [加密备份、COS 配置与恢复流程](docs/tencent-backups.md)
 - [打印 PDF 实现与验证](docs/print-pdf.md)
 - [最初接手的历史架构](docs/initial-project-review.md)（描述旧版，不作为当前部署状态）
 
 用户已于2026-10-04完成人工审核；本次主分支整合版本重新通过46项JavaScript/SQL测试、18项针对性Python翻译回归及构建校验（9,956个卡号均有中文）。检索浏览器验证范围见对应功能文档。打印PDF已有浏览器下载、全部页面物理尺寸校验和首尾页渲染检查记录，尚未实体打印。邮箱收信与验证码输入、TTS客户端使用由维护者亲测。
 
-2026-10-04正式部署已Ready并绑定正式域名，线上核验数字卡号、19类基本能力与52个换装卡面、新术语、社区条件栏、组合筛选、末页跳转及匿名会话通过；707套公开卡组的构成索引在发布后再次核对无缺失或过期。
+2026-10-04 Vercel正式部署已Ready并绑定正式域名，线上核验数字卡号、19类基本能力与52个换装卡面、新术语、社区条件栏、组合筛选、末页跳转及匿名会话通过；707套公开卡组的构成索引在发布后再次核对无缺失或过期。此记录指已发布的检索升级，不代表腾讯迁移已正式切换。
 
 仓库仍保留早期 Redis、在线翻译和其他实验脚本，正式检索不使用这些方案。旧链接兼容仍可能依赖外部服务。历史文档中「尚未提交／仅预览／正式环境未配置」是当时记录，当前运行方式以本 README 为准。

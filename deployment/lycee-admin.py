@@ -162,6 +162,9 @@ def init_production(args, cfg):
 
 
 def app_run(user, release, env, script, *arguments):
+    # Node resolves import.meta.url through symlinks; use the same real release
+    # path so guarded CLI entrypoints also run when callers pass current/.
+    release = release.resolve(strict=True)
     clean = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'LANG': 'C.UTF-8', **env}
     # Credentials travel in the environment, not process arguments/logged URLs.
     return run(['/usr/sbin/runuser', '-u', user, '--', '/usr/local/bin/node', str(release / script), *arguments],
