@@ -18,7 +18,9 @@ done
 check_target() {
   local target=$1 marker=$2
   [[ ! -L "$target" ]] || { echo "Refusing existing symlink: $target" >&2; exit 1; }
-  if [[ -e "$target" ]] && ! head -c 200 "$target" | grep -qF "$marker"; then
+  # Do not use grep -q in a pipefail pipeline: its early exit can SIGPIPE head,
+  # intermittently rejecting a correctly marked managed file.
+  if [[ -e "$target" ]] && [[ $(head -c 200 -- "$target") != *"$marker"* ]]; then
     echo "Refusing unmanaged file: $target" >&2; exit 1
   fi
 }
