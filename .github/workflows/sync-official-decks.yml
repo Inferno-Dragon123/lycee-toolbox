@@ -117,7 +117,8 @@ jobs:
           if-no-files-found: ignore
   sync:
     needs: cards
-    if: always() && !cancelled() && (github.event_name == 'schedule' || inputs.scope != 'cards')
+    # After cutover only the domestic maintenance timer may write the business DB.
+    if: always() && !cancelled() && vars.MIGRATION_LIVE != '1' && (github.event_name == 'schedule' || inputs.scope != 'cards')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

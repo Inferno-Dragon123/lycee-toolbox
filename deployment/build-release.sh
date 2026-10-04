@@ -10,6 +10,9 @@ export PUPPETEER_SKIP_DOWNLOAD=true
 npm ci --no-audit --no-fund
 npm run build
 npm test
+# Operational signatures and readback boundaries are part of the release checks.
+python3 -m unittest discover -s tests -p test_tencent_dns.py
+python3 -m unittest discover -s tests -p test_cos_backup.py
 npm prune --omit=dev --no-audit --no-fund
 export LYCEE_RELEASE_SHA="$sha"
 node --input-type=module -e 'import fs from "node:fs"; fs.writeFileSync("RELEASE.json", JSON.stringify({sha:process.env.LYCEE_RELEASE_SHA,nodeMajor:24,platform:"linux",arch:"x64",builtAt:new Date().toISOString()})+"\n")'

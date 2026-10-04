@@ -19,7 +19,8 @@ PREVIEW_TLS_KEY=/etc/letsencrypt/live/lycee-toolbox.top/privkey.pem
 # Optional preview seeding: only a dedicated read-only official-public-data DB role.
 # No production app credential, auth tables or user records may be supplied here.
 PREVIEW_SEED_SOURCE_URL=
-# Independent preview-only SMTP account; blank disables preview email sign-in.
+# Optional sending-only SMTP credentials. Shared Resend sending access is supported;
+# never copy production DB or authentication secrets. Blank disables preview sign-in.
 PREVIEW_SMTP_HOST=
 PREVIEW_SMTP_PORT=465
 PREVIEW_SMTP_SECURE=true
@@ -29,4 +30,10 @@ PREVIEW_SMTP_FROM=
 # Optional backup offsite rsync target, e.g. backup@10.0.0.8:/srv/backups/lycee
 # Configure root's restricted key and known_hosts independently; no plaintext passwords.
 BACKUP_OFFSITE=
+# Only the age public recipient is stored here; keep the recovery private key offline.
+BACKUP_RECIPIENT_FILE=/etc/lycee/backup-recipient.txt
+# Set to 1 after provisioning the public recipient; backups then fail closed if missing.
+BACKUP_REQUIRE_ENCRYPTION=0
+# Optional existing private COS bucket configuration (root 0600). No bucket is created.
+BACKUP_COS_CONFIG=
 BACKUP_RETENTION_DAYS=14

@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import http from 'node:http';
 import { isIP } from 'node:net';
-import { createReadStream } from 'node:fs';
+import { createReadStream, readFileSync } from 'node:fs';
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -11,6 +11,13 @@ import { cards, byCode } from '../lib/catalog.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const publicDir = path.join(root, 'public');
+const revision = (() => {
+    if (process.env.DEPLOY_REVISION) return process.env.DEPLOY_REVISION;
+    try {
+        const metadata = JSON.parse(readFileSync(path.join(root, 'RELEASE.json'), 'utf8'));
+        return /^[a-f0-9]{40}$/.test(metadata.sha) ? metadata.sha : 'local';
+    } catch { return 'local'; }
+})();
 const routes = new Set(['cards', 'auth', 'admin-stats', 'decks', 'community', 'generate-pdf',
     'translate', 'translate-test', 'translate-from-json', 'lo-proxy', 'import-deck', 'image-proxy']);
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -111,7 +118,7 @@ export function createProductionServer({ checkReady = readiness } = {}) {
                     }
                 }
                 if (req.method === 'HEAD') return res.end();
-                return res.json({ status: 'ok', revision: process.env.DEPLOY_REVISION || 'local', cards: cards.length });
+                return res.json({ status: 'ok', revision, cards: cards.length });
             }
             if (url.pathname.startsWith('/api/')) {
                 res.setHeader('Cache-Control', 'no-store');

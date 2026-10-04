@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import sharp from 'sharp';
 import { CARD_BACK_SOURCE, withCardImageUrls, parseImagePath, imageKeyForSource, inspectImage, readStoredImage } from '../lib/card-images.js';
-import { createOfficialClient, mirrorImages, atomicStore } from '../scripts/mirror-card-images.js';
+import { createOfficialClient, mirrorImages, atomicStore, acquireMirrorLock } from '../scripts/mirror-card-images.js';
 import { downloadImages } from '../lib/pdf.js';
 import { makeTts } from '../public/deck-format.js';
 import { imageProxyHandler } from '../api/image-proxy.js';
@@ -21,6 +21,17 @@ async function fixture(t) {
     });
     return directory;
 }
+
+test('mirror recovery handles reused PIDs after reboot while excluding a live worker', async t => {
+    const directory = await fixture(t), file = path.join(directory, '.mirror.lock');
+    await fs.writeFile(file, JSON.stringify({ pid: process.pid, host: os.hostname(), token: 'previous', bootId: 'previous-boot' }));
+    const release = await acquireMirrorLock(directory, { bootId: 'current-boot' });
+    await assert.rejects(acquireMirrorLock(directory, { bootId: 'current-boot' }), /running/);
+    await release();
+    await assert.rejects(fs.stat(file), { code: 'ENOENT' });
+    await fs.writeFile(file, JSON.stringify({ pid: process.pid, host: 'other-server', token: 'other', bootId: 'previous-boot' }));
+    await assert.rejects(acquireMirrorLock(directory, { bootId: 'current-boot' }), /owns the lock/);
+});
 test('runtime URLs preserve canonical sources, distinguish thumbnails and originals, and export public HTTPS TTS faces and back', () => {
     const mapped = withCardImageUrls(card, { env: { IMAGE_STORAGE_DIR: path.resolve('temp/images'),
         SITE_ORIGIN: 'https://toolbox.example.com', IMAGE_PUBLIC_ORIGIN: 'https://images.example.com' } });

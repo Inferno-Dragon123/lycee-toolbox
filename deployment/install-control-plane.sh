@@ -15,7 +15,7 @@ check_target() {
     echo "Refusing unmanaged file: $target" >&2; exit 1
   fi
 }
-for file in lycee-admin.py backup.py backup.sh maintenance.sh images.sh; do
+for file in lycee-admin.py backup.py backup.sh maintenance.sh images.sh cos-backup.py; do
   check_target "/usr/local/lib/lycee/$file" 'lycee-managed:'
 done
 for source in "$source_dir"/systemd/*.service "$source_dir"/systemd/*.timer; do
@@ -24,6 +24,8 @@ done
 check_target /etc/sudoers.d/lycee-deploy '# lycee-managed:'
 check_target /etc/systemd/system/lycee@production.service.d/resources.conf '# lycee-managed:'
 check_target /etc/systemd/journald.conf.d/lycee.conf '# lycee-managed:'
+check_target /etc/nginx/conf.d/00-lycee-default.conf '# lycee-managed:'
+check_target /etc/letsencrypt/renewal-hooks/deploy/lycee-nginx '# lycee-managed:'
 if [[ -e /usr/local/sbin/lycee-admin ]] && [[ $(readlink /usr/local/sbin/lycee-admin) != /usr/local/lib/lycee/lycee-admin.py ]]; then
   echo 'Refusing unmanaged /usr/local/sbin/lycee-admin' >&2; exit 1
 fi
@@ -41,7 +43,7 @@ install -d -m 0700 -o lycee-release -g lycee-release /var/lib/lycee/incoming/pro
 install -d -m 0700 -o lycee-deploy -g lycee-deploy /var/lib/lycee/incoming/preview
 usermod -aG lycee-assets www-data
 usermod -aG lycee-assets lycee-production
-for file in lycee-admin.py backup.py backup.sh maintenance.sh images.sh; do
+for file in lycee-admin.py backup.py backup.sh maintenance.sh images.sh cos-backup.py; do
   install -m 0755 "$source_dir/$file" "/usr/local/lib/lycee/$file"
 done
 ln -sfn /usr/local/lib/lycee/lycee-admin.py /usr/local/sbin/lycee-admin
@@ -51,12 +53,17 @@ done
 install -m 0644 "$source_dir/systemd/production-resource.conf" /etc/systemd/system/lycee@production.service.d/resources.conf
 install -d -m 0755 /etc/systemd/journald.conf.d
 install -m 0644 "$source_dir/journald.conf" /etc/systemd/journald.conf.d/lycee.conf
+install -m 0644 "$source_dir/nginx-default.conf" /etc/nginx/conf.d/00-lycee-default.conf
+install -d -m 0755 /etc/letsencrypt/renewal-hooks/deploy
+install -m 0755 "$source_dir/renew-certificates.sh" /etc/letsencrypt/renewal-hooks/deploy/lycee-nginx
 # sudo grants only the root-owned validated management command, no shell/editor/systemctl.
 printf '%s\n' '# lycee-managed: deployment sudo v1' 'lycee-deploy ALL=(root) NOPASSWD: /usr/local/sbin/lycee-admin' 'lycee-release ALL=(root) NOPASSWD: /usr/local/sbin/lycee-admin' > /etc/sudoers.d/lycee-deploy
 chmod 0440 /etc/sudoers.d/lycee-deploy
 visudo -cf /etc/sudoers.d/lycee-deploy
 systemctl daemon-reload
 systemctl restart systemd-journald
-systemd-analyze verify /etc/systemd/system/lycee@.service /etc/systemd/system/lycee-backup.service /etc/systemd/system/lycee-maintenance.service /etc/systemd/system/lycee-images.service
+systemd-analyze verify /etc/systemd/system/lycee@.service /etc/systemd/system/lycee-backup.service /etc/systemd/system/lycee-maintenance.service /etc/systemd/system/lycee-images.service /etc/systemd/system/lycee-initial-images.service
+nginx -t
+systemctl reload nginx
 systemctl enable --now lycee-cleanup.timer
 echo 'Control plane installed. Backup/maintenance/images timers require explicit enable after configuration.'

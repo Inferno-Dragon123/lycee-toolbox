@@ -39,6 +39,7 @@ jobs:
       ref_hex: ${{ steps.target.outputs.ref_hex }}
       production: ${{ steps.target.outputs.production }}
       deleting: ${{ steps.target.outputs.deleting }}
+      permitted: ${{ steps.target.outputs.permitted }}
     steps:
       - name: Select branch without evaluating its name as shell code
         id: target
@@ -62,15 +63,17 @@ jobs:
           production = branch == 'master'
           if production and event == 'delete':
               raise SystemExit('Production cannot be deleted')
-          if production and os.environ.get('MIGRATION_LIVE') != '1':
-              raise SystemExit('Production auto-deploy remains disabled until the final cutover sets MIGRATION_LIVE=1')
+          permitted = not production or os.environ.get('MIGRATION_LIVE') == '1'
+          if not permitted:
+              print('Production auto-deploy remains disabled until final cutover; skipping deployment.')
           target = 'production' if production else 'p-' + hashlib.sha256(branch.encode()).hexdigest()[:12]
           with open(os.environ['GITHUB_OUTPUT'], 'a') as file:
-              file.write(f'target={target}\nbranch={branch}\nref_hex={branch.encode().hex()}\nproduction={str(production).lower()}\ndeleting={str(event == "delete").lower()}\n')
+              file.write(f'target={target}\nbranch={branch}\nref_hex={branch.encode().hex()}\nproduction={str(production).lower()}\ndeleting={str(event == "delete").lower()}\npermitted={str(permitted).lower()}\n')
           PY
 
   deploy:
     needs: prepare
+    if: needs.prepare.outputs.permitted == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     # Configure production's environment to permit master only; preview uses its own SSH secrets.

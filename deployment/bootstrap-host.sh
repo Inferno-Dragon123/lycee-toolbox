@@ -29,7 +29,7 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-cache show postgresql-18 >/dev/null || { echo 'postgresql-18 unavailable. Configure an approved PG18 apt source, then retry.' >&2; exit 1; }
-apt-get install --no-install-recommends -y nginx postgresql-18 postgresql-client-18 curl ca-certificates openssl rsync python3 unzip xz-utils acl
+apt-get install --no-install-recommends -y nginx postgresql-18 postgresql-client-18 curl ca-certificates openssl rsync python3 unzip xz-utils acl age certbot
 if ! command -v node >/dev/null; then
   work=$(mktemp -d /var/tmp/lycee-node.XXXXXXXX)
   trap 'rm -rf -- "$work"' EXIT

@@ -32,13 +32,14 @@ async function loadState(directory) {
         return value;
     } catch (e) { if (e.code !== 'ENOENT') throw e; return { schemaVersion: 1, entries: {}, lastRequestAt: 0 }; }
 }
-async function acquireLock(directory) {
+export async function acquireMirrorLock(directory, { bootId } = {}) {
+    if (bootId === undefined) bootId = await fs.readFile('/proc/sys/kernel/random/boot_id', 'utf8').then(value => value.trim()).catch(() => null);
     const file = path.join(directory, '.mirror.lock');
     const token = randomBytes(16).toString('hex');
     for (let attempt = 0; attempt < 2; attempt++) {
         try {
             const handle = await fs.open(file, 'wx', 0o640);
-            await handle.writeFile(JSON.stringify({ pid: process.pid, host: os.hostname(), token, startedAt: new Date().toISOString() }));
+            await handle.writeFile(JSON.stringify({ pid: process.pid, host: os.hostname(), token, bootId, startedAt: new Date().toISOString() }));
             await handle.close();
             return async () => {
                 const current = JSON.parse(await fs.readFile(file, 'utf8'));
@@ -48,6 +49,8 @@ async function acquireLock(directory) {
             if (e.code !== 'EEXIST') throw e;
             const owner = JSON.parse(await fs.readFile(file, 'utf8'));
             if (owner.host !== os.hostname() || !Number.isSafeInteger(owner.pid) || owner.pid < 1) throw new Error('Another image mirror owns the lock');
+            // PIDs can be reused after reboot. A prior boot cannot still own this lock.
+            if (bootId && owner.bootId && bootId !== owner.bootId) { await fs.unlink(file); continue; }
             try { process.kill(owner.pid, 0); throw new Error('Another image mirror is running'); }
             catch (check) { if (check.code !== 'ESRCH') throw check; }
             await fs.unlink(file);
@@ -120,7 +123,7 @@ export async function mirrorImages({ directory, catalog, limit = 100, all = fals
     if (refreshCodes.some(code => !sources.has(code))) throw new Error('Unknown --refresh-code');
     const refresh = new Set(refreshCodes);
     let release;
-    if (!dryRun) { await fs.mkdir(directory, { recursive: true }); release = await acquireLock(directory); }
+    if (!dryRun) { await fs.mkdir(directory, { recursive: true }); release = await acquireMirrorLock(directory); }
     try {
         const state = await loadState(directory);
         const report = { total: sources.size, verified: 0, downloaded: 0, failed: 0, deferred: 0, pending: 0, planned: 0, dryRun };
