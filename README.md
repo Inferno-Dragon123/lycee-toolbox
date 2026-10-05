@@ -132,9 +132,11 @@ node --env-file=.env.production scripts/migrate.js
 
 ## 腾讯云迁移进度（2026-10-05）
 
-**备案上次反馈仍在审核，正式站仍为 Vercel/Neon，`master` 已发布 `a0c81af`。** 迁移分支 `codex/tencent-migration-20261004` 采用腾讯 Lighthouse + Node.js 24 + Nginx + 本机 PostgreSQL + systemd，完整步骤见 [腾讯部署手册](docs/tencent-deployment.md)。2026-10-04 的已验运行版本 `df3d59a` 通过完整 Ubuntu 构建、70 项 JavaScript、9 项 DNS 和 11 项 COS 测试，生产演练及固定预览均部署该版本；[Actions 37176074999](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/runs/37176074999) 已验证增量上传、归档校验和自动预览更新。公网验收仍需备案放行。
+**备案上次反馈仍在审核，正式站仍为 Vercel/Neon，`master` 已发布 `b2ec11d`。** 迁移分支 `codex/tencent-migration-20261004` 采用腾讯 Lighthouse + Node.js 24 + Nginx + 本机 PostgreSQL + systemd，完整步骤见 [腾讯部署手册](docs/tencent-deployment.md)。2026-10-04 的已验运行版本 `df3d59a` 通过完整 Ubuntu 构建、70 项 JavaScript、9 项 DNS 和 11 项 COS 测试，生产演练及固定预览均部署该版本；[Actions 37176074999](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/runs/37176074999) 已验证增量上传、归档校验和自动预览更新。公网验收仍需备案放行。
 
 2026-10-05 已同步维护者测试通过并发布到主站的 TTS 卡牌尺寸及手机下拉框修复，保留迁移版登录适配与公开 HTTPS 卡图校验。同步版本通过本机构建、70 项 JavaScript/SQL 测试及触屏浏览器回归；另 1 项符号链接测试因 Windows 权限跳过，由 Ubuntu 发布构建执行。分支 push 自动更新独立腾讯预览，生产自动部署开关仍为关闭状态。
+
+同日同步官网配方重复卡号行的解析修复：完整卡号的数量累加，仍核验每行和总张数；正式站和腾讯迁移版共用此规则。
 
 - 腾讯 Ubuntu 26.04 上已部署生产演练，8 张业务表的行数及内容指纹与 Neon 一致，包括 707 条发布、683 份快照；5 个账号保留旧用户 ID 迁入本地 Auth，正式切换后需重新登录。
 - 分支自动部署首次 [Actions 运行 37171459769](https://github.com/Inferno-Dragon123/lycee-toolbox/actions/runs/37171459769) 成功，生成[腾讯迁移预览](https://p-5b541628e000.preview.lycee-toolbox.top/)。预览数据库与 Auth 独立，含 706 套官网公开卡组、无迁入的真实账号。云防火墙已补放行 443；公网 HTTP 被 302 重定向到腾讯 `webblock`，HTTPS 握手被重置，已核实是域名拦截，仍需备案通过后完成公网验收。
@@ -165,6 +167,8 @@ npm run decks:sync -- --limit 100 --pages 3
 本机更新默认不 Git 提交，核对后自行提交推送。抓取间隔至少 10 秒，报告、备份和翻译缓存放在忽略目录 `temp/`；不重新翻译已有中文。官网下架或改写旧卡效果不自动删除或覆盖最终库，需要人工核对。
 
 官网卡组采用有界增量同步，不代表已抓取全站所有历史卡组；遵循 robots.txt，不访问被禁止的检索路径，也不解析官方攻略文章中的多套配方。
+
+官网配方允许同一卡号分成多行；导入与每日同步会累加这些行的数量，保留完整异画卡号，并继续核验每行及官网总张数。无效配方仍进入重试队列并报告失败。
 
 ## 维护资料与验证
 
